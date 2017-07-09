@@ -1,6 +1,6 @@
 '''
 Created on Jul 9, 2017
-@author: yawarnihal,Elie Aljalbout
+@author: yawarnihal, eliealjalbout
 '''
 import cPickle
 import gzip
@@ -12,8 +12,10 @@ from nolearn.lasagne import BatchIterator
 import theano
 
 import numpy as np
-import shape
+
 import theano.tensor as T
+from PIL import Image
+
 
 def refineDatasetForAutoencoder(dataset):
     X = dataset
@@ -22,15 +24,25 @@ def refineDatasetForAutoencoder(dataset):
     X_train = X.astype(np.float64)
     X_train = (X_train - mu) / sigma
     X_train = X_train.astype(np.float32)
-    return (X_train, X_train)
+    return (X_train, X_train, mu, sigma)
 
 def loadDataSet(fname='mnist/mnist.pkl.gz'):
     f = gzip.open(fname, 'rb')
     train_set, valid_set, test_set = cPickle.load(f)
     f.close()
-    (X_train_in, X_train_out) = refineDatasetForAutoencoder(train_set[0])
-    (X_valid_in, X_valid_out) = refineDatasetForAutoencoder(valid_set[0])
-    return (X_train_in, X_train_out, X_valid_in, X_valid_out)
+    (X_train_in, X_train_out, mu_train, sigma_train) = refineDatasetForAutoencoder(train_set[0])
+    (X_valid_in, X_valid_out, mu_valid, sigma_valid) = refineDatasetForAutoencoder(valid_set[0])
+    return (X_train_in, X_train_out, mu_train, sigma_train, X_valid_in, X_valid_out, mu_valid, sigma_valid)
+
+dataset = loadDataSet()
+test_image_data = dataset[0][0]
+test_image = dataset[0][0][0]*dataset[3] + dataset[2]
+test_image = np.rint(test_image ).astype(int)
+test_image = np.clip(test_image, a_min = 0, a_max = 255)
+test_image  = test_image.astype('uint8')
+print test_image.shape
+img = Image.fromarray(test_image,'L')
+img.save('0.png')
 
 class Unpool2DLayer(layers.Layer):
     """
@@ -81,32 +93,41 @@ class FlipBatchIterator(BatchIterator):
 
         return X1b, X2b
 
-def CreateDCJC(input_dim, filter_defs, input_var=None):
-    # Filter defs 
-    # List of filters ((numberoffilters, filtershape_x, filtershape_y),...)
-    # Make it more general to loop over instead of init 1 by 1
-    network = lasagne.layers.InputLayer(shape=(None, 1, input_dim[0], input_dim[1]), input_var=input_var)
-    shape = network.get_output_shape_for((500, 1, input_dim[0], input_dim[1]))
+def CreateDCJC(input_var=None):
+    network = lasagne.layers.InputLayer(shape=(None, 1, 28, 28), input_var=input_var)
+    shape = network.get_output_shape_for((500, 1, 28, 28))
     print shape
-    network = lasagne.layers.Conv2DLayer(network, num_filters=filter_defs[0][0], filter_size=(filter_defs[0][1], filter_defs[0][2]), nonlinearity=lasagne.nonlinearities.tanh, W=lasagne.init.GlorotUniform())
+    network = lasagne.layers.Conv2DLayer(network, num_filters=6, filter_size=(5,5), nonlinearity=lasagne.nonlinearities.rectify, W=lasagne.init.GlorotUniform())
     shape = network.get_output_shape_for(shape)
     print shape
-    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(filter_defs[1][0], filter_defs[1][1]))
+    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
     shape = network.get_output_shape_for(shape)
     print shape
-    # network = lasagne.layers.DenseLayer(network, num_units=(filter_defs[0][0]*input_dim[0]*input_dim[1])/4, nonlinearity=lasagne.nonlinearities.tanh)
-    network = Unpool2DLayer(network, (filter_defs[1][0], filter_defs[1][0]))
+    network = lasagne.layers.Conv2DLayer(network, num_filters=6, filter_size=(5,5), nonlinearity=lasagne.nonlinearities.rectify, W=lasagne.init.GlorotUniform())
     shape = network.get_output_shape_for(shape)
     print shape
-    network = lasagne.layers.Deconv2DLayer(network, num_filters=1, filter_size=(filter_defs[0][1], filter_defs[0][2]), nonlinearity=lasagne.nonlinearities.tanh, W=lasagne.init.GlorotUniform())
+    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
     shape = network.get_output_shape_for(shape)
     print shape
+    network = Unpool2DLayer(network, (2,2))
+    shape = network.get_output_shape_for(shape)
+    print shape
+    network = lasagne.layers.Deconv2DLayer(network, num_filters=6, filter_size=(5,5), nonlinearity=lasagne.nonlinearities.rectify, W=lasagne.init.GlorotUniform())
+    shape = network.get_output_shape_for(shape)
+    print shape
+    network = Unpool2DLayer(network, (2,2))
+    shape = network.get_output_shape_for(shape)
+    print shape
+    network = lasagne.layers.Deconv2DLayer(network, num_filters=1, filter_size=(5,5), nonlinearity=lasagne.nonlinearities.rectify, W=lasagne.init.GlorotUniform())
+    shape = network.get_output_shape_for(shape)
+    print shape
+    
     return network
 
 input_var = T.tensor4('input')
 target_var = T.tensor4('target')
 
-network = CreateDCJC((28, 28), [[32, 7, 7], [2, 2]], input_var)
+network = CreateDCJC(input_var)
 prediction = lasagne.layers.get_output(network) 
 loss = lasagne.objectives.squared_error(prediction, target_var)
 loss = loss.mean()
@@ -116,29 +137,61 @@ updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=0.01, mo
 test_prediction = lasagne.layers.get_output(network, deterministic=True)
 test_loss = lasagne.objectives.squared_error(prediction, target_var)
 test_loss = test_loss.mean()
-test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var))
+#test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var))
 train_fn = theano.function([input_var, target_var], loss, updates=updates)
-val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
+val_fn = theano.function([input_var, target_var], test_loss)
+
+get_prediction = theano.function([input_var], test_prediction)
+
+def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
+    assert len(inputs) == len(targets)
+    if shuffle:
+        indices = np.arange(len(inputs))
+        np.random.shuffle(indices)
+    for start_idx in range(0, len(inputs) - batchsize + 1, batchsize):
+        if shuffle:
+            excerpt = indices[start_idx:start_idx + batchsize]
+        else:
+            excerpt = slice(start_idx, start_idx + batchsize)
+        yield inputs[excerpt], targets[excerpt]
 
 print("Starting training...")
 # We iterate over epochs:
 
-dataset = loadDataSet()
-print dataset[1].shape
-num_epochs = 5
+num_epochs = 200
 for epoch in range(num_epochs):
     # In each epoch, we do a full pass over the training data:
     train_err = 0
+    train_batches = 0
     start_time = time.time()
-    train_err = train_fn(dataset[0], dataset[1])
+    for batch in iterate_minibatches(dataset[0], dataset[1], 500, shuffle=True):
+        inputs, targets = batch
+        train_err += train_fn(inputs, targets)
+        train_batches += 1
+        
 
     # And a full pass over the validation data:
     val_err = 0
     val_acc = 0
-    val_err, val_acc = val_fn(dataset[2], dataset[3])
+    val_batches = 0
+    for batch in iterate_minibatches(dataset[4], dataset[5], 500, shuffle=False):
+        inputs, targets = batch
+        err = val_fn(inputs, targets)
+        val_err += err
+        val_batches += 1
     
+    output = get_prediction([test_image_data])
+    test_image = output[0][0]*dataset[3] + dataset[2]
+    test_image = np.rint(test_image ).astype(int)
+    test_image = np.clip(test_image, a_min = 0, a_max = 255)
+    test_image  = test_image.astype('uint8')
+    img = Image.fromarray(test_image)
+    img.save(str(epoch+1)+'.png', format="PNG")
+
     # Then we print the results for this epoch:
-    print("Epoch {} of {} took {:.3f}s".format(epoch + 1, num_epochs, time.time() - start_time))
-    print("  training loss:\t\t{:.6f}".format(train_err))
-    print("  validation loss:\t\t{:.6f}".format(val_err))
-    print("  validation accuracy:\t\t{:.2f} %".format(val_acc * 100))
+    print("Epoch {} of {} took {:.3f}s".format(
+        epoch + 1, num_epochs, time.time() - start_time))
+    print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
+    print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+    print("  validation accuracy:\t\t{:.2f} %".format(
+        val_acc / val_batches * 100))
