@@ -1,7 +1,6 @@
 '''
 Created on Jul 9, 2017
-
-@author: yawarnihal
+@author: yawarnihal,Elie Aljalbout
 '''
 import cPickle
 import gzip
