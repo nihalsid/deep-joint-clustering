@@ -8,9 +8,7 @@ import lasagne
 import theano
 
 import theano.tensor as T
-from lasagne.layers.normalization import batch_norm
 from lasagne.layers.helper import get_all_layers
-from lasagne.layers.conv import Conv2DLayer
 
 
 class Unpool2DLayer(layers.Layer):
@@ -40,6 +38,7 @@ class DCJC(object):
         self.input_var = T.tensor4('input_var')
         self.target_var = T.tensor4('target_var')
         self.network = self.getNetworkExpression(network_description)
+        self.printLayers()
         prediction_expression = self.getPredictionExpression(self.network)
         loss = self.getLossExpression(prediction_expression, self.target_var)
         updates = self.getNetworkUpdates(self.network, loss)
@@ -52,22 +51,21 @@ class DCJC(object):
                 'rectify': lasagne.nonlinearities.rectify,
                 }[non_linearity_name]
     
-    def getLayer(self, network, layer_definition, do_batch_norm=False):
+    def getLayer(self, network, layer_definition):
         if (layer_definition['layer_type'] == 'Conv2D'):
-            if do_batch_norm:
-                return batch_norm(layers.Conv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform())) 
-            else:
-                return layers.Conv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform())
+            return layers.Conv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform())
         elif (layer_definition['layer_type'] == 'MaxPool2D'):
             return lasagne.layers.MaxPool2DLayer(network, pool_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]))
+        elif (layer_definition['layer_type'] == 'Encode'):
+            network = lasagne.layers.flatten(network)
+            network = lasagne.layers.DenseLayer(network, num_units=layer_definition['encode_size'], nonlinearity=lasagne.nonlinearities.rectify, W=lasagne.init.GlorotUniform())
+            network = lasagne.layers.DenseLayer(network, num_units=layer_definition['output_shape'][0]*layer_definition['output_shape'][1]*layer_definition['output_shape'][2], nonlinearity=lasagne.nonlinearities.rectify, W=lasagne.init.GlorotUniform())
+            return lasagne.layers.reshape(network, (-1, layer_definition['output_shape'][0], layer_definition['output_shape'][1], layer_definition['output_shape'][2]))
         elif (layer_definition['layer_type'] == 'Unpool2D'):
             return Unpool2DLayer(network, (layer_definition['filter_size'][0], layer_definition['filter_size'][1]))
         elif (layer_definition['layer_type'] == 'Deconv2D'):
-            if do_batch_norm:
-                return batch_norm(layers.Deconv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform()))
-            else:
-                return layers.Deconv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform())
-        elif (layer_definition['layer_type'] == 'input'):
+            return layers.Deconv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform())
+        elif (layer_definition['layer_type'] == 'Input'):
             return layers.InputLayer(shape=(None, layer_definition['output_shape'][0], layer_definition['output_shape'][1], layer_definition['output_shape'][2]), input_var=self.input_var)
     
     def populateNetworkOutputShapes(self, network_description):
@@ -75,13 +73,14 @@ class DCJC(object):
         for layer in network_description['layers_encode']:
             if (layer['layer_type'] == 'MaxPool2D'):
                 layer['output_shape'] = [last_layer_dimensions[0], last_layer_dimensions[1] / layer['filter_size'][0], last_layer_dimensions[2] / layer['filter_size'][1]]
-            if (layer['layer_type'] == 'Conv2D'):
+            elif (layer['layer_type'] == 'Conv2D'):
                 layer['output_shape'] = [layer['num_filters'], last_layer_dimensions[1] - layer['filter_size'][0] + 1 , last_layer_dimensions[2] - layer['filter_size'][1] + 1]
+            elif (layer['layer_type'] == 'Encode'):
+                layer['output_shape'] = last_layer_dimensions 
             last_layer_dimensions = layer['output_shape']
 
     def populateMirroredNetwork(self, network_description):
         network_description['layers_decode'] = [] 
-        self.populateNetworkOutputShapes(network_description)
         old_network_description = network_description.copy()
         for i in range(len(old_network_description['layers_encode']) - 1, -1, -1):
             if (old_network_description['layers_encode'][i]['layer_type'] == 'MaxPool2D'):
@@ -99,19 +98,16 @@ class DCJC(object):
         
     def getNetworkExpression(self, network_description):
         network = None
+        self.populateNetworkOutputShapes(network_description)
         for layer in network_description['layers_encode']:
-            network = self.getLayer(network, layer, network_description['use_batch_normalization'])
+            network = self.getLayer(network, layer)
             # print network
         layer_list = get_all_layers(network)
         if network_description['use_inverse_layers'] == True:
             for i in range(len(layer_list) - 1, 0, -1):
-                #print network, layer_list[i]
+                # print network, layer_list[i]
                 if any(type(layer_list[i]) is invertible_layer for invertible_layer in invertible_layers):
-                    if(network_description['use_batch_normalization'] and type(layer_list[i]) is Conv2DLayer):
-                        network = batch_norm(lasagne.layers.InverseLayer(network, layer_list[i]))
-                    else:
-                        network = lasagne.layers.InverseLayer(network, layer_list[i])
-                
+                    network = lasagne.layers.InverseLayer(network, layer_list[i])
         else:
             self.populateMirroredNetwork(network_description)
             for layer in network_description['layers_decode']:
@@ -143,5 +139,8 @@ class DCJC(object):
     
     def printLayers(self):
         layers = get_all_layers(self.network)
+        #shape_i = (500,1,28,28)
         for l in layers:
             print type(l)
+            #print l.get_output_shape_for(shape_i)
+            #shape_i = l.get_output_shape_for(shape_i)
