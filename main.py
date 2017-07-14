@@ -3,8 +3,14 @@ Created on Jul 9, 2017
 @author: yawarnihal, eliealjalbout
 '''
 import time
+
+import numpy
+from sklearn import metrics
+from sklearn.cluster.k_means_ import KMeans
+
 from misc import Dataset, rescaleReshapeAndSaveImage
 from network import DCJC
+
 
 arch1 = {
 # a small conv, max pool, same small conv, max pool
@@ -12,7 +18,7 @@ arch1 = {
 'use_inverse_layers': True,
 'layers_encode': [
       {
-        'layer_type':'input',
+        'layer_type':'Input',
         'output_shape': [1, 28, 28]
         },
       {
@@ -44,7 +50,7 @@ arch2 = {
 'use_inverse_layers': True,
 'layers_encode': [
       {
-        'layer_type':'input',
+        'layer_type':'Input',
         'output_shape': [1, 28, 28]
         },
       {
@@ -76,7 +82,7 @@ arch3 = {
 'use_inverse_layers': True,
 'layers_encode': [
       {
-        'layer_type':'input',
+        'layer_type':'Input',
         'output_shape': [1, 28, 28]
         },
       {
@@ -95,11 +101,11 @@ arch3 = {
 
 arch4 = {
 # Half of arch 2
-# Train loss after 10 iterations - 0.04
 'use_inverse_layers': True,
+'name': 'c-5-32_p',
 'layers_encode': [
       {
-        'layer_type':'input',
+        'layer_type':'Input',
         'output_shape': [1, 28, 28]
         },
       {
@@ -117,7 +123,9 @@ arch4 = {
 
 arch5 = {
 # Arch 4 with Fully connected encode layer
+# Train accuracy = 10, irrespective of number of layers
 'use_inverse_layers': True,
+'name': 'c-5-32_p_fc-10',
 'layers_encode': [
         {
         'layer_type':'Input',
@@ -132,20 +140,45 @@ arch5 = {
         {
         'layer_type':'MaxPool2D',
         'filter_size': (2, 2),
-        },        
+        },
         {
         'layer_type':'Encode',
-        'encode_size':4,
+        'encode_size':10,
         },
     ]
 }
 
-if __name__=="__main__":
+arch6 = {
+'use_inverse_layers': True,
+'name': 'c-5-64_p_fc-10',
+'layers_encode': [
+        {
+        'layer_type':'Input',
+        'output_shape': [1, 28, 28]
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 64,
+        'filter_size': (5, 5),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Encode',
+        'encode_size':10,
+        },
+    ]
+}
+
+def testOnlyConvAutoEncoder():
     print("\nLoading dataset...")
     dataset = Dataset()
     dataset.loadDataSet()
     test_image_index = 2
-    rescaleReshapeAndSaveImage(dataset.train_input[test_image_index][0],dataset.train_mu,dataset.train_sigma, 'outputs/input_'+str(test_image_index)+'.png')
+    rescaleReshapeAndSaveImage(dataset.train_input[test_image_index][0], dataset.train_mu, dataset.train_sigma, 'outputs/input_' + str(test_image_index) + '.png')
     print("Done loading dataset\n")
     print("Creating network...")
     dcjc = DCJC(arch5)
@@ -169,7 +202,46 @@ if __name__=="__main__":
             err = dcjc.validate(inputs, targets)
             validation_error += err
             validation_batch_count += 1
-        rescaleReshapeAndSaveImage(dcjc.predict([dataset.train_input[test_image_index]])[0][0],dataset.train_mu,dataset.train_sigma, 'outputs/'+str(epoch+1)+'.png')
+        rescaleReshapeAndSaveImage(dcjc.predictReconstruction([dataset.train_input[test_image_index]])[0][0], dataset.train_mu, dataset.train_sigma, 'outputs/' + str(epoch + 1) + '.png')
         print("Epoch {} of {} took {:.3f}s".format(epoch + 1, num_epochs, time.time() - start_time))
         print("  training loss:\t\t{:.6f}".format(train_error / train_batch_count))
         print("  validation loss:\t\t{:.6f}".format(validation_error / validation_batch_count))
+
+def testClusterInitialization(arch):
+    print("\nLoading dataset...")
+    dataset = Dataset()
+    dataset.loadDataSet()
+    print("Done loading dataset\n")
+    print("Creating network...")
+    dcjc = DCJC(arch)
+    dcjc.printLayers()
+    print("Done creating network\n")
+    print("Starting training...")
+    dcjc.pretrainWithData(dataset, arch['name'], 1000);
+    
+def evaluateKMeans(data, labels, method_name):
+    kmeans = KMeans(n_clusters=10, n_init=20)
+    kmeans.fit(data)
+    print '%-12s\t %8.3f\t %8.3f\t %8.3f\t %8.3f\t %8.3f' % (method_name, metrics.homogeneity_score(labels, kmeans.labels_),
+         metrics.completeness_score(labels, kmeans.labels_),
+         metrics.v_measure_score(labels, kmeans.labels_),
+         metrics.adjusted_rand_score(labels, kmeans.labels_),
+         metrics.adjusted_mutual_info_score(labels, kmeans.labels_))
+
+def testKMeans(methods):
+    print 'Initial Cluster Quality Comparison'
+    print(99 * '_')
+    print('%-12s\t %8s\t %8s\t %8s\t %8s\t %8s' % ('method', 'homo', 'compl', 'v-meas', 'ARI', 'AMI'))
+    print(99 * '_') 
+    dataset = Dataset()
+    dataset.loadDataSet()
+    evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image')
+    for m in methods:
+        Z = numpy.load('models/z_'+m['name']+'.pkl')
+        evaluateKMeans(Z, dataset.train_labels, m['name'])
+    
+if __name__ == '__main__':
+    #testClusterInitialization(arch4) 
+    #testClusterInitialization(arch5)
+    #testClusterInitialization(arch6)
+    testKMeans([arch5, arch6, arch4])
