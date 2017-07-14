@@ -12,10 +12,37 @@ from misc import Dataset, rescaleReshapeAndSaveImage
 from network import DCJC
 
 
+arch0 = {
+    'use_inverse_layers': False,
+    'name': 'fc-500_fc-500_fc-2000_fc-10',
+    'layers_encode': [
+        {
+            'layer_type':'Input',
+            'output_shape': [1, 1, 28 * 28]
+        },
+        {
+            'layer_type':'Dense',
+            'num_units': 500,
+        },
+        {
+            'layer_type':'Dense',
+            'num_units': 500,
+        },
+        {
+            'layer_type':'Dense',
+            'num_units': 2000,
+        },
+        {
+            'layer_type':'Encode',
+            'num_units': 10,
+            'non_linearity': 'linear'
+        },
+    ]
+} 
+
 arch1 = {
-# a small conv, max pool, same small conv, max pool
-# Loss after 20 epochs = 19.5
 'use_inverse_layers': True,
+'name': 'c-6-5_p_c-6-5_p',
 'layers_encode': [
       {
         'layer_type':'Input',
@@ -45,9 +72,8 @@ arch1 = {
 }
 
 arch2 = {
-# architecture 1 with more filters in both convolutional layers, but same filter size
-# Train loss after 20 epochs = 12.2
 'use_inverse_layers': True,
+'name':'c-5-32_p_c-5-32_p',
 'layers_encode': [
       {
         'layer_type':'Input',
@@ -77,9 +103,8 @@ arch2 = {
 }
 
 arch3 = {
-# Half of arch 1
-# Train loss after 20 epochs= 0.07
 'use_inverse_layers': True,
+'name':'c-6-5_p',
 'layers_encode': [
       {
         'layer_type':'Input',
@@ -144,6 +169,7 @@ arch5 = {
         {
         'layer_type':'Encode',
         'encode_size':10,
+        'non_linearity': 'linear',
         },
     ]
 }
@@ -169,6 +195,7 @@ arch6 = {
         {
         'layer_type':'Encode',
         'encode_size':10,
+        'non_linearity': 'linear'
         },
     ]
 }
@@ -207,7 +234,7 @@ def testOnlyConvAutoEncoder():
         print("  training loss:\t\t{:.6f}".format(train_error / train_batch_count))
         print("  validation loss:\t\t{:.6f}".format(validation_error / validation_batch_count))
 
-def testClusterInitialization(arch):
+def testClusterInitialization(arch, epochs):
     print("\nLoading dataset...")
     dataset = Dataset()
     dataset.loadDataSet()
@@ -217,12 +244,12 @@ def testClusterInitialization(arch):
     dcjc.printLayers()
     print("Done creating network\n")
     print("Starting training...")
-    dcjc.pretrainWithData(dataset, arch['name'], 1000);
+    dcjc.pretrainWithData(dataset, epochs);
     
 def evaluateKMeans(data, labels, method_name):
     kmeans = KMeans(n_clusters=10, n_init=20)
     kmeans.fit(data)
-    print '%-12s\t %8.3f\t %8.3f\t %8.3f\t %8.3f\t %8.3f' % (method_name, metrics.homogeneity_score(labels, kmeans.labels_),
+    print '%-30s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (method_name, metrics.homogeneity_score(labels, kmeans.labels_),
          metrics.completeness_score(labels, kmeans.labels_),
          metrics.v_measure_score(labels, kmeans.labels_),
          metrics.adjusted_rand_score(labels, kmeans.labels_),
@@ -231,17 +258,20 @@ def evaluateKMeans(data, labels, method_name):
 def testKMeans(methods):
     print 'Initial Cluster Quality Comparison'
     print(99 * '_')
-    print('%-12s\t %8s\t %8s\t %8s\t %8s\t %8s' % ('method', 'homo', 'compl', 'v-meas', 'ARI', 'AMI'))
+    print('%-30s     %8s     %8s     %8s     %8s     %8s' % ('method', 'homo', 'compl', 'v-meas', 'ARI', 'AMI'))
     print(99 * '_') 
     dataset = Dataset()
     dataset.loadDataSet()
-    evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image')
+    # evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image')
     for m in methods:
-        Z = numpy.load('models/z_'+m['name']+'.pkl')
+        Z = numpy.load('models/z_' + m['name'] + '.npy')
         evaluateKMeans(Z, dataset.train_labels, m['name'])
     
 if __name__ == '__main__':
-    #testClusterInitialization(arch4) 
-    #testClusterInitialization(arch5)
-    #testClusterInitialization(arch6)
-    testKMeans([arch5, arch6, arch4])
+    testClusterInitialization(arch5, 1)
+    testClusterInitialization(arch6, 1)
+    testClusterInitialization(arch4, 1) 
+    testClusterInitialization(arch3, 1)    
+    testClusterInitialization(arch2, 1)
+    testClusterInitialization(arch0, 2)
+    testKMeans([arch5, arch6, arch4, arch3, arch2, arch0])
