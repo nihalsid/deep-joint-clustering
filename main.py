@@ -205,7 +205,7 @@ def testOnlyConvAutoEncoder():
     dataset = Dataset()
     dataset.loadDataSet()
     test_image_index = 2
-    rescaleReshapeAndSaveImage(dataset.train_input[test_image_index][0], dataset.train_mu, dataset.train_sigma, 'outputs/input_' + str(test_image_index) + '.png')
+    rescaleReshapeAndSaveImage(dataset.train_input[test_image_index][0], 'outputs/input_' + str(test_image_index) + '.png')
     print("Done loading dataset\n")
     print("Creating network...")
     dcjc = DCJC(arch5)
@@ -229,7 +229,7 @@ def testOnlyConvAutoEncoder():
             err = dcjc.validate(inputs, targets)
             validation_error += err
             validation_batch_count += 1
-        rescaleReshapeAndSaveImage(dcjc.predictReconstruction([dataset.train_input[test_image_index]])[0][0], dataset.train_mu, dataset.train_sigma, 'outputs/' + str(epoch + 1) + '.png')
+        rescaleReshapeAndSaveImage(dcjc.predictReconstruction([dataset.train_input[test_image_index]])[0][0], 'outputs/' + str(epoch + 1) + '.png')
         print("Epoch {} of {} took {:.3f}s".format(epoch + 1, num_epochs, time.time() - start_time))
         print("  training loss:\t\t{:.6f}".format(train_error / train_batch_count))
         print("  validation loss:\t\t{:.6f}".format(validation_error / validation_batch_count))
@@ -268,10 +268,10 @@ def testKMeans(methods):
         evaluateKMeans(Z, dataset.train_labels, m['name'])
     
 if __name__ == '__main__':
-    testClusterInitialization(arch5, 1)
-    testClusterInitialization(arch6, 1)
-    testClusterInitialization(arch4, 1) 
-    testClusterInitialization(arch3, 1)    
-    testClusterInitialization(arch2, 1)
+    #testClusterInitialization(arch5, 1)
+    #testClusterInitialization(arch6, 1)
+    #testClusterInitialization(arch4, 1) 
+    #testClusterInitialization(arch3, 1)    
+    #testClusterInitialization(arch2, 1)
     testClusterInitialization(arch0, 2)
-    testKMeans([arch5, arch6, arch4, arch3, arch2, arch0])
+    testKMeans([arch0])#([arch5, arch6, arch4, arch3, arch2, arch0])
