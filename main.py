@@ -234,7 +234,7 @@ def testOnlyConvAutoEncoder():
         print("  training loss:\t\t{:.6f}".format(train_error / train_batch_count))
         print("  validation loss:\t\t{:.6f}".format(validation_error / validation_batch_count))
 
-def testClusterInitialization(arch, epochs):
+def testOnlyClusterInitialization(arch, epochs):
     print("\nLoading dataset...")
     dataset = Dataset()
     dataset.loadDataSet()
@@ -266,12 +266,23 @@ def testKMeans(methods):
     for m in methods:
         Z = numpy.load('models/z_' + m['name'] + '.npy')
         evaluateKMeans(Z, dataset.train_labels, m['name'])
+
+def testOnlyClusterImprovement(arch, epochs): 
+    print("\nLoading dataset...")
+    dataset = Dataset()
+    dataset.loadDataSet()
+    print("Done loading dataset\n")
+    print("Creating network...")
+    dcjc = DCJC(arch)
+    print("Starting cluster improvement")
+    dcjc.doClustering(dataset, epochs)
     
 if __name__ == '__main__':
-    #testClusterInitialization(arch5, 1)
-    #testClusterInitialization(arch6, 1)
-    #testClusterInitialization(arch4, 1) 
-    #testClusterInitialization(arch3, 1)    
-    #testClusterInitialization(arch2, 1)
-    testClusterInitialization(arch0, 2)
+#     testOnlyClusterInitialization(arch5, 1)
+#     testOnlyClusterInitialization(arch6, 1)
+#     testOnlyClusterInitialization(arch4, 1) 
+#     testOnlyClusterInitialization(arch3, 1)    
+#     testOnlyClusterInitialization(arch2, 1)
+    testOnlyClusterInitialization(arch0, 30)
     testKMeans([arch0])#([arch5, arch6, arch4, arch3, arch2, arch0])
+    testOnlyClusterImprovement(arch0, 30)

@@ -32,7 +32,29 @@ class Unpool2DLayer(layers.Layer):
     def get_output_for(self, incoming, **kwargs):
         ds = self.ds
         return incoming.repeat(ds[0], axis=2).repeat(ds[1], axis=3)
+
+class ClusteringLayer(layers.Layer):
+
+    def __init__(self, incoming, num_clusters, initial_clusters, num_samples, latent_space_dim, **kwargs):
+        super(ClusteringLayer, self).__init__(incoming, **kwargs)
+        self.num_clusters = num_clusters
+        self.W = self.add_param(theano.shared(initial_clusters), initial_clusters.shape, 'W')
+        self.num_samples = num_samples
+        self.latent_space_dim = latent_space_dim
+        
+    def get_output_shape_for(self, input_shape):
+        return (input_shape[0], self.num_clusters)
     
+    def get_output_for(self, incoming, **kwargs):
+        z_expanded = incoming.reshape((self.num_samples, 1, self.latent_space_dim))
+        z_expanded = T.tile(z_expanded, (1, self.num_clusters, 1)) 
+        u_expanded = T.tile(self.W, (self.num_samples, 1, 1))
+        distances_from_cluster_centers = (z_expanded - u_expanded).norm(2, axis=2)
+        qij_numerator = 1 + distances_from_cluster_centers * distances_from_cluster_centers
+        qij_numerator = 1 / qij_numerator
+        normalizer_q = qij_numerator.sum(axis=1).reshape((self.num_samples, 1))
+        return qij_numerator / normalizer_q;
+        
 invertible_layers = [layers.Conv2DLayer, layers.MaxPool2DLayer]
 
 class DCJC(object):
@@ -181,7 +203,7 @@ class DCJC(object):
         
     def getNetworkUpdates(self, network, loss):
         params = lasagne.layers.get_all_params(network, trainable=True)
-        updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=0.01, momentum=0.9)
+        updates = lasagne.updates.adam(loss, params)
         return updates
     
     def getTrainFunction(self, input_var, output_var, loss, updates):
@@ -197,13 +219,13 @@ class DCJC(object):
         return theano.function([input_var, output_var], loss)
     
     def pretrainWithData(self, dataset, pretrain_epochs):
-        pretrain_error = 0
-        pretrain_total_batches = 0
-        batch_size = 500
+        batch_size = 10
         train_set = 'train'
         if self.network_type == 'AE':
             train_set = 'train_flat'
         for epoch in range(pretrain_epochs):
+            pretrain_error = 0
+            pretrain_total_batches = 0
             for batch in dataset.iterate_minibatches(train_set, batch_size, shuffle=True):
                 inputs, targets = batch
                 pretrain_error += self.train(inputs, targets)
@@ -211,13 +233,13 @@ class DCJC(object):
             print 'Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches)
         
         Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
-        print Z.shape
         idx = 0
         for batch in dataset.iterate_minibatches(train_set, batch_size, shuffle=False):
             Z[idx * batch_size:(idx + 1) * batch_size] = self.predictEncoding(batch[0])  
             idx = idx + 1          
         np.save('models/z_%s.npy' % self.name, Z)
         np.savez('models/m_%s.npz' % self.name, *lasagne.layers.get_all_param_values(self.network))
+        np.savetxt('models/z_%s.csv' % self.name, Z, delimiter=",")
         # Assume training complete
         # After training is complete get encodings for all the train data
         # Next do kmeans to find centers of clusters
@@ -225,18 +247,69 @@ class DCJC(object):
         # z layer and output as the q distribution, with weights = cluster centers
         # Loss for this new layer = kl divergence and reconstruction loss
     
-    def doClustering(self, dataset):
-        with np.load('model.npz') as f:
+    def doClustering(self, dataset, cluster_train_epochs):
+        batch_size = 500
+        with np.load('models/m_%s.npz' % self.name) as f:
             param_values = [f['arr_%d' % i] for i in range(len(f.files))]
         lasagne.layers.set_all_param_values(self.network, param_values)
-        Z = np.load('z_dump.pkl')
+        Z = np.load('models/z_%s.npy' % self.name)
         kmeans = KMeans(init='k-means++', n_clusters=10)
         kmeans.fit(Z)
-        print '%8.3f\t %8.3f\t %8.3f\t %8.3f\t %8.3f' % (metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
-             metrics.completeness_score(dataset.train_labels, kmeans.labels_),
-             metrics.v_measure_score(dataset.train_labels, kmeans.labels_),
-             metrics.adjusted_rand_score(dataset.train_labels, kmeans.labels_),
-             metrics.adjusted_mutual_info_score(dataset.train_labels, kmeans.labels_))
+        cluster_centers = kmeans.cluster_centers_
+        print '%-5s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (0, metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
+        metrics.completeness_score(dataset.train_labels, kmeans.labels_),
+        metrics.v_measure_score(dataset.train_labels, kmeans.labels_),
+        metrics.adjusted_rand_score(dataset.train_labels, kmeans.labels_),
+        metrics.adjusted_mutual_info_score(dataset.train_labels, kmeans.labels_))
+        
+#         np.savetxt('models/K_%s.csv' % self.name, kmeans.labels_, delimiter=",")
+        dec_network = ClusteringLayer(self.encode_layer, 10, cluster_centers, batch_size, self.encode_size)
+        P = T.matrix('P')
+        clustering_loss = self.getClusteringLossExpression(layers.get_output(dec_network), P)
+        params = lasagne.layers.get_all_params(dec_network, trainable=True)
+        updates = lasagne.updates.adadelta(clustering_loss, params)
+        
+        getSoftAssignments = theano.function([self.input_var], layers.get_output(dec_network))
+        trainForClustering = theano.function([self.input_var, P], clustering_loss, updates=updates)
+        
+        train_set = 'train'
+        if self.network_type == 'AE':
+            train_set = 'train_flat'
+        
+        for _ in range(20):
+            qij = np.zeros((dataset.train_input.shape[0], 10), dtype=np.float32)
+            for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
+                qij[i * batch_size: (i + 1) * batch_size] = getSoftAssignments(batch[0])
+    #         np.savetxt('models/Q_%s.csv' % self.name, qij, delimiter=",")
+            pij = self.calculateP(qij) 
+    #         np.savetxt('models/P_%s.csv' % self.name, pij, delimiter=",")
+            print qij[0:5]
+            print pij[0:5]
+            
+            for epoch in range(cluster_train_epochs):
+                cluster_train_error = 0
+                cluster_train_total_batches = 0
+                for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
+                    #qij = getSoftAssignments(batch[0])
+                    #pij = self.calculateP(qij, batch_size)
+                    cluster_train_error += trainForClustering(batch[0], pij[i*batch_size:(i+1)*batch_size])
+                    cluster_train_total_batches += 1
+            print 'Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, cluster_train_epochs, cluster_train_error / cluster_train_total_batches)
+            
+            Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
+            idx = 0
+            for batch in dataset.iterate_minibatches(train_set, batch_size, shuffle=False):
+                Z[idx * batch_size:(idx + 1) * batch_size] = self.predictEncoding(batch[0])
+                idx = idx + 1
+        
+            kmeans = KMeans(init='k-means++', n_clusters=10)
+            kmeans.fit(Z)
+            cluster_centers = kmeans.cluster_centers_
+            print '%-5s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % ('1', metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
+            metrics.completeness_score(dataset.train_labels, kmeans.labels_),
+            metrics.v_measure_score(dataset.train_labels, kmeans.labels_),
+            metrics.adjusted_rand_score(dataset.train_labels, kmeans.labels_),
+            metrics.adjusted_mutual_info_score(dataset.train_labels, kmeans.labels_))
     
     def printLayers(self):
         layers = get_all_layers(self.network)
@@ -245,3 +318,18 @@ class DCJC(object):
             print type(l)
             # print l.get_output_shape_for(shape_i)
             # shape_i = l.get_output_shape_for(shape_i)
+
+    def calculateP(self, Q):
+        f = Q.sum(axis=0)
+        pij_numerator = Q * Q
+        pij_numerator = pij_numerator / f;
+        normalizer_p = pij_numerator.sum(axis=1).reshape((Q.shape[0], 1))
+        P = pij_numerator / normalizer_p
+        return P
+    
+    def getClusteringLossExpression(self, Q_expression, P_expression):
+        log_arg = P_expression / Q_expression
+        log_exp = T.log(log_arg)
+        sum_arg = P_expression * log_exp
+        loss = sum_arg.sum(axis=1).sum(axis=0)
+        return loss

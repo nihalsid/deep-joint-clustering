@@ -21,14 +21,14 @@ class Dataset(object):
         self.train_input, self.train_target, self.train_input_flat, self.train_labels = self.prepareDatasetForAutoencoder(train_set[0], train_set[1])
         self.valid_input, self.valid_target, self.valid_input_flat, self.valid_labels = self.prepareDatasetForAutoencoder(valid_set[0], valid_set[1])
         self.test_input, self.test_target, self.test_input_flat, self.test_labels = self.prepareDatasetForAutoencoder(test_set[0], test_set[1])
-        # self.train_input = self.train_input[0:1000]
-        # self.train_target = self.train_target[0:1000]
-        # self.train_labels = self.train_labels[0:1000]
-        # self.train_input_flat = self.train_input_flat[0:1000]
+#         self.train_input = self.train_input[0:1000]
+#         self.train_target = self.train_target[0:1000]
+#         self.train_labels = self.train_labels[0:1000]
+#         self.train_input_flat = self.train_input_flat[0:1000]
         
     def prepareDatasetForAutoencoder(self, inputs, targets):
         X = inputs
-        X = X.reshape((-1, 1, 28, 28))
+        X = X.reshape((-1, 1, 28, 28))*256*0.02
         return (X, X, X.reshape((-1, 28 * 28)), targets)
 
     def iterate_minibatches(self, set_type, batch_size, shuffle=False):
