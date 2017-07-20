@@ -5,11 +5,9 @@ Created on Jul 9, 2017
 import time
 
 import numpy
-from sklearn import metrics
-from sklearn.cluster.k_means_ import KMeans
 
-from misc import Dataset, rescaleReshapeAndSaveImage
-from network import DCJC
+from misc import Dataset, rescaleReshapeAndSaveImage, evaluateKMeans
+from network import DCJC, rootLogger
 
 
 arch0 = {
@@ -200,18 +198,53 @@ arch6 = {
     ]
 }
 
+arch7 = {
+'use_inverse_layers': True,
+'name': 'c-3-32_p_c-3-64_p_fc-32',
+'layers_encode': [
+        {
+        'layer_type':'Input',
+        'output_shape': [1, 28, 28]
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 32,
+        'filter_size': (3, 3),
+        'non_linearity': 'elu'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 64,
+        'filter_size': (3, 3),
+        'non_linearity': 'elu'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Encode',
+        'encode_size':32,
+        'non_linearity': 'elu'
+        },
+    ]
+}
+
 def testOnlyConvAutoEncoder():
-    print("\nLoading dataset...")
+    rootLogger.info("Loading dataset")
     dataset = Dataset()
     dataset.loadDataSet()
     test_image_index = 2
     rescaleReshapeAndSaveImage(dataset.train_input[test_image_index][0], 'outputs/input_' + str(test_image_index) + '.png')
-    print("Done loading dataset\n")
-    print("Creating network...")
+    rootLogger.info("Done loading dataset")
+    rootLogger.info("Creating network")
     dcjc = DCJC(arch5)
-    dcjc.printLayers()
-    print("Done creating network\n")
-    print("Starting training...")
+    rootLogger.info("Done creating network")
+    rootLogger.info("Starting training")
     num_epochs = 50
     for epoch in range(num_epochs):
         # In each epoch, we do a full pass over the training data:
@@ -230,48 +263,50 @@ def testOnlyConvAutoEncoder():
             validation_error += err
             validation_batch_count += 1
         rescaleReshapeAndSaveImage(dcjc.predictReconstruction([dataset.train_input[test_image_index]])[0][0], 'outputs/' + str(epoch + 1) + '.png')
-        print("Epoch {} of {} took {:.3f}s".format(epoch + 1, num_epochs, time.time() - start_time))
-        print("  training loss:\t\t{:.6f}".format(train_error / train_batch_count))
-        print("  validation loss:\t\t{:.6f}".format(validation_error / validation_batch_count))
+        rootLogger.info("Epoch {} of {} took {:.3f}s".format(epoch + 1, num_epochs, time.time() - start_time))
+        rootLogger.info("  training loss:\t\t{:.6f}".format(train_error / train_batch_count))
+        rootLogger.info("  validation loss:\t\t{:.6f}".format(validation_error / validation_batch_count))
 
-def testClusterInitialization(arch, epochs):
-    print("\nLoading dataset...")
+def testOnlyClusterInitialization(arch, epochs):
+    rootLogger.info("Loading dataset")
     dataset = Dataset()
     dataset.loadDataSet()
-    print("Done loading dataset\n")
-    print("Creating network...")
+    rootLogger.info("Done loading dataset")
+    rootLogger.info("Creating network")
     dcjc = DCJC(arch)
-    dcjc.printLayers()
-    print("Done creating network\n")
-    print("Starting training...")
+    rootLogger.info("Done creating network")
+    rootLogger.info("Starting training")
     dcjc.pretrainWithData(dataset, epochs);
     
-def evaluateKMeans(data, labels, method_name):
-    kmeans = KMeans(n_clusters=10, n_init=20)
-    kmeans.fit(data)
-    print '%-30s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (method_name, metrics.homogeneity_score(labels, kmeans.labels_),
-         metrics.completeness_score(labels, kmeans.labels_),
-         metrics.v_measure_score(labels, kmeans.labels_),
-         metrics.adjusted_rand_score(labels, kmeans.labels_),
-         metrics.adjusted_mutual_info_score(labels, kmeans.labels_))
-
 def testKMeans(methods):
-    print 'Initial Cluster Quality Comparison'
-    print(99 * '_')
-    print('%-30s     %8s     %8s     %8s     %8s     %8s' % ('method', 'homo', 'compl', 'v-meas', 'ARI', 'AMI'))
-    print(99 * '_') 
+    rootLogger.info('Initial Cluster Quality Comparison')
+    rootLogger.info(60 * '_')
+    rootLogger.info('%-30s     %8s     %8s' % ('method', 'ARI', 'AMI'))
+    rootLogger.info(60 * '_') 
     dataset = Dataset()
     dataset.loadDataSet()
-    # evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image')
+    #rootLogger.info(evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image'))
     for m in methods:
         Z = numpy.load('models/z_' + m['name'] + '.npy')
-        evaluateKMeans(Z, dataset.train_labels, m['name'])
+        rootLogger.info(evaluateKMeans(Z, dataset.train_labels, m['name']))
+    rootLogger.info(60 * '_') 
+    
+def testOnlyClusterImprovement(arch, epochs, repeats): 
+    rootLogger.info("Loading dataset")
+    dataset = Dataset()
+    dataset.loadDataSet()
+    rootLogger.info("Done loading dataset")
+    rootLogger.info("Creating network")
+    dcjc = DCJC(arch)
+    rootLogger.info("Starting cluster improvement")
+    dcjc.doClustering(dataset, True, epochs, repeats)
     
 if __name__ == '__main__':
-    #testClusterInitialization(arch5, 1)
-    #testClusterInitialization(arch6, 1)
-    #testClusterInitialization(arch4, 1) 
-    #testClusterInitialization(arch3, 1)    
-    #testClusterInitialization(arch2, 1)
-    testClusterInitialization(arch0, 2)
-    testKMeans([arch0])#([arch5, arch6, arch4, arch3, arch2, arch0])
+#    testOnlyClusterInitialization(arch5, 1)
+    testOnlyClusterInitialization(arch7, 400)
+#     testOnlyClusterInitialization(arch4, 1) 
+#     testOnlyClusterInitialization(arch3, 1)    
+#     testOnlyClusterInitialization(arch2, 1)
+#     testOnlyClusterInitialization(arch0, 50)
+    testKMeans([arch7])  # ([arch5, arch6, arch4, arch3, arch2, arch0])
+#     testOnlyClusterImprovement(arch0, 100, 20)
