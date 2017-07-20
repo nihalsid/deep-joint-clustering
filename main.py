@@ -5,10 +5,8 @@ Created on Jul 9, 2017
 import time
 
 import numpy
-from sklearn import metrics
-from sklearn.cluster.k_means_ import KMeans
 
-from misc import Dataset, rescaleReshapeAndSaveImage
+from misc import Dataset, rescaleReshapeAndSaveImage, evaluateKMeans
 from network import DCJC, rootLogger
 
 
@@ -200,6 +198,42 @@ arch6 = {
     ]
 }
 
+arch7 = {
+'use_inverse_layers': True,
+'name': 'c-3-32_p_c-3-64_p_fc-32',
+'layers_encode': [
+        {
+        'layer_type':'Input',
+        'output_shape': [1, 28, 28]
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 32,
+        'filter_size': (3, 3),
+        'non_linearity': 'elu'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 64,
+        'filter_size': (3, 3),
+        'non_linearity': 'elu'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Encode',
+        'encode_size':32,
+        'non_linearity': 'elu'
+        },
+    ]
+}
+
 def testOnlyConvAutoEncoder():
     rootLogger.info("Loading dataset")
     dataset = Dataset()
@@ -244,27 +278,19 @@ def testOnlyClusterInitialization(arch, epochs):
     rootLogger.info("Starting training")
     dcjc.pretrainWithData(dataset, epochs);
     
-def evaluateKMeans(data, labels, method_name):
-    kmeans = KMeans(n_clusters=10, n_init=20)
-    kmeans.fit(data)
-    rootLogger.info( '%-30s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (method_name, metrics.homogeneity_score(labels, kmeans.labels_),
-         metrics.completeness_score(labels, kmeans.labels_),
-         metrics.v_measure_score(labels, kmeans.labels_),
-         metrics.adjusted_rand_score(labels, kmeans.labels_),
-         metrics.adjusted_mutual_info_score(labels, kmeans.labels_)))
-
 def testKMeans(methods):
     rootLogger.info('Initial Cluster Quality Comparison')
-    rootLogger.info(99 * '_')
-    rootLogger.info('%-30s     %8s     %8s     %8s     %8s     %8s' % ('method', 'homo', 'compl', 'v-meas', 'ARI', 'AMI'))
-    rootLogger.info(99 * '_') 
+    rootLogger.info(60 * '_')
+    rootLogger.info('%-30s     %8s     %8s' % ('method', 'ARI', 'AMI'))
+    rootLogger.info(60 * '_') 
     dataset = Dataset()
     dataset.loadDataSet()
-    # evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image')
+    #rootLogger.info(evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image'))
     for m in methods:
         Z = numpy.load('models/z_' + m['name'] + '.npy')
-        evaluateKMeans(Z, dataset.train_labels, m['name'])
-
+        rootLogger.info(evaluateKMeans(Z, dataset.train_labels, m['name']))
+    rootLogger.info(60 * '_') 
+    
 def testOnlyClusterImprovement(arch, epochs, repeats): 
     rootLogger.info("Loading dataset")
     dataset = Dataset()
@@ -273,14 +299,14 @@ def testOnlyClusterImprovement(arch, epochs, repeats):
     rootLogger.info("Creating network")
     dcjc = DCJC(arch)
     rootLogger.info("Starting cluster improvement")
-    dcjc.doClustering(dataset, epochs, repeats)
+    dcjc.doClustering(dataset, True, epochs, repeats)
     
 if __name__ == '__main__':
-#     testOnlyClusterInitialization(arch5, 1)
-#     testOnlyClusterInitialization(arch6, 1)
+#    testOnlyClusterInitialization(arch5, 1)
+    testOnlyClusterInitialization(arch7, 400)
 #     testOnlyClusterInitialization(arch4, 1) 
 #     testOnlyClusterInitialization(arch3, 1)    
 #     testOnlyClusterInitialization(arch2, 1)
-    testOnlyClusterInitialization(arch0, 50)
-    testKMeans([arch0])  # ([arch5, arch6, arch4, arch3, arch2, arch0])
-    testOnlyClusterImprovement(arch0, 50, 20)
+#     testOnlyClusterInitialization(arch0, 50)
+    testKMeans([arch7])  # ([arch5, arch6, arch4, arch3, arch2, arch0])
+#     testOnlyClusterImprovement(arch0, 100, 20)

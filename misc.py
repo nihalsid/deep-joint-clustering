@@ -8,6 +8,8 @@ import cPickle
 import gzip
 
 from PIL import Image
+from sklearn import metrics
+from sklearn.cluster.k_means_ import KMeans
 
 import numpy as np
 
@@ -28,7 +30,7 @@ class Dataset(object):
         
     def prepareDatasetForAutoencoder(self, inputs, targets):
         X = inputs
-        X = X.reshape((-1, 1, 28, 28))*256*0.02
+        X = X.reshape((-1, 1, 28, 28)) * 256 * 0.02
         return (X, X, X.reshape((-1, 28 * 28)), targets)
 
     def iterate_minibatches(self, set_type, batch_size, shuffle=False):
@@ -58,8 +60,18 @@ class Dataset(object):
             yield inputs[excerpt], targets[excerpt]
 
 def rescaleReshapeAndSaveImage(image_sample, out_filename):
-    image_sample = ((image_sample - np.amin(image_sample)) /(np.amax(image_sample) - np.amin(image_sample))) * 255;
+    image_sample = ((image_sample - np.amin(image_sample)) / (np.amax(image_sample) - np.amin(image_sample))) * 255;
     image_sample = np.rint(image_sample).astype(int)
     image_sample = np.clip(image_sample, a_min=0, a_max=255).astype('uint8')
     img = Image.fromarray(image_sample, 'L')
     img.save(out_filename)
+
+def getClusterMetricString(method_name, labels_true, labels_pred):
+    return '%-30s     %8.3f     %8.3f' % (method_name, metrics.adjusted_rand_score(labels_true, labels_pred), metrics.adjusted_mutual_info_score(labels_true, labels_pred))
+
+def evaluateKMeans(data, labels, method_name):
+    kmeans = KMeans(n_clusters=10, n_init=20)
+    kmeans.fit(data)
+    return getClusterMetricString(method_name, labels, kmeans.labels_)
+
+    
