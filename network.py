@@ -3,6 +3,8 @@ Created on Jul 11, 2017
 
 @author: yawarnihal, eliealjalbout
 '''
+
+from datetime import datetime
 import logging
 
 from lasagne import layers
@@ -16,8 +18,18 @@ import numpy as np
 import theano.tensor as T
 
 
-logging.basicConfig(format='[%(asctime)s]   %(message)s', datefmt='%m/%d %I:%M:%S', level=logging.DEBUG)
+logFormatter = logging.Formatter("[%(asctime)s]  %(message)s", datefmt='%m/%d %I:%M:%S')
 
+rootLogger = logging.getLogger()
+rootLogger.setLevel(logging.DEBUG)
+
+fileHandler = logging.FileHandler(datetime.now().strftime('dcjc_%H_%M_%d_%m.log'))
+fileHandler.setFormatter(logFormatter)
+rootLogger.addHandler(fileHandler)
+
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(logFormatter)
+rootLogger.addHandler(consoleHandler)
 
 class Unpool2DLayer(layers.Layer):
     """
@@ -231,7 +243,7 @@ class DCJC(object):
                 inputs, targets = batch
                 pretrain_error += self.train(inputs, targets)
                 pretrain_total_batches += 1
-            logging.info('Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches))
+            rootLogger.info('Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches))
         
         Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
         idx = 0
@@ -257,7 +269,7 @@ class DCJC(object):
         kmeans = KMeans(init='k-means++', n_clusters=10)
         kmeans.fit(Z)
         cluster_centers = kmeans.cluster_centers_
-        logging.info (( '%-5s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (0, metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
+        rootLogger.info (( '%-5s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (0, metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
         metrics.completeness_score(dataset.train_labels, kmeans.labels_),
         metrics.v_measure_score(dataset.train_labels, kmeans.labels_),
         metrics.adjusted_rand_score(dataset.train_labels, kmeans.labels_),
@@ -289,7 +301,7 @@ class DCJC(object):
                 for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
                     cluster_train_error += trainForClustering(batch[0], pij[i*batch_size:(i+1)*batch_size])
                     cluster_train_total_batches += 1
-            logging.info('Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, cluster_train_epochs, cluster_train_error / cluster_train_total_batches))
+            rootLogger.info('Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, cluster_train_epochs, cluster_train_error / cluster_train_total_batches))
             
             Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
             for i,batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
@@ -298,17 +310,17 @@ class DCJC(object):
             kmeans = KMeans(init='k-means++', n_clusters=10)
             kmeans.fit(Z)
             cluster_centers = kmeans.cluster_centers_
-            logging.info( '%-5s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (_iter+1, metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
+            rootLogger.info( '%-5s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (_iter+1, metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
             metrics.completeness_score(dataset.train_labels, kmeans.labels_),
             metrics.v_measure_score(dataset.train_labels, kmeans.labels_),
             metrics.adjusted_rand_score(dataset.train_labels, kmeans.labels_),
             metrics.adjusted_mutual_info_score(dataset.train_labels, kmeans.labels_)))
-            logging.info("")
+            rootLogger.info("")
             
     def printLayers(self):
         layers = get_all_layers(self.network)
         for l in layers:
-            logging.info (type(l))
+            rootLogger.info (type(l))
 
     def calculateP(self, Q):
         f = Q.sum(axis=0)
