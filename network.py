@@ -3,6 +3,8 @@ Created on Jul 11, 2017
 
 @author: yawarnihal, eliealjalbout
 '''
+import logging
+
 from lasagne import layers
 import lasagne
 from lasagne.layers.helper import get_all_layers
@@ -12,6 +14,9 @@ import theano
 
 import numpy as np
 import theano.tensor as T
+
+
+logging.basicConfig(format='[%(asctime)s]   %(message)s', datefmt='%m/%d %I:%M:%S', level=logging.DEBUG)
 
 
 class Unpool2DLayer(layers.Layer):
@@ -175,19 +180,15 @@ class DCJC(object):
         self.populateNetworkOutputShapes(network_description)
         for i, layer in enumerate(network_description['layers_encode']):
             network = self.getLayer(network, layer, i == len(network_description['layers_encode']) - 1)
-            # print network
         layer_list = get_all_layers(network)
         if network_description['use_inverse_layers'] == True:
             for i in range(len(layer_list) - 1, 0, -1):
-                # print network, layer_list[i]
                 if any(type(layer_list[i]) is invertible_layer for invertible_layer in invertible_layers):
                     network = lasagne.layers.InverseLayer(network, layer_list[i])
         else:
             self.populateMirroredNetwork(network_description)
-            # pprint(network_description)
             for i, layer in enumerate(network_description['layers_decode']):
                 network = self.getLayer(network, layer, False, i == len(network_description['layers_decode']) - 1)
-                # print network
         return network
     
     def getReconstructionPredictionExpression(self, network):
@@ -230,7 +231,7 @@ class DCJC(object):
                 inputs, targets = batch
                 pretrain_error += self.train(inputs, targets)
                 pretrain_total_batches += 1
-            print 'Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches)
+            logging.info('Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches))
         
         Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
         idx = 0
@@ -247,7 +248,7 @@ class DCJC(object):
         # z layer and output as the q distribution, with weights = cluster centers
         # Loss for this new layer = kl divergence and reconstruction loss
     
-    def doClustering(self, dataset, cluster_train_epochs):
+    def doClustering(self, dataset, cluster_train_epochs, repeats):
         batch_size = 500
         with np.load('models/m_%s.npz' % self.name) as f:
             param_values = [f['arr_%d' % i] for i in range(len(f.files))]
@@ -256,11 +257,11 @@ class DCJC(object):
         kmeans = KMeans(init='k-means++', n_clusters=10)
         kmeans.fit(Z)
         cluster_centers = kmeans.cluster_centers_
-        print '%-5s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (0, metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
+        logging.info (( '%-5s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (0, metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
         metrics.completeness_score(dataset.train_labels, kmeans.labels_),
         metrics.v_measure_score(dataset.train_labels, kmeans.labels_),
         metrics.adjusted_rand_score(dataset.train_labels, kmeans.labels_),
-        metrics.adjusted_mutual_info_score(dataset.train_labels, kmeans.labels_))
+        metrics.adjusted_mutual_info_score(dataset.train_labels, kmeans.labels_))))
         
 #         np.savetxt('models/K_%s.csv' % self.name, kmeans.labels_, delimiter=",")
         dec_network = ClusteringLayer(self.encode_layer, 10, cluster_centers, batch_size, self.encode_size)
@@ -276,48 +277,38 @@ class DCJC(object):
         if self.network_type == 'AE':
             train_set = 'train_flat'
         
-        for _ in range(20):
+        for _iter in range(repeats):
             qij = np.zeros((dataset.train_input.shape[0], 10), dtype=np.float32)
             for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
                 qij[i * batch_size: (i + 1) * batch_size] = getSoftAssignments(batch[0])
-    #         np.savetxt('models/Q_%s.csv' % self.name, qij, delimiter=",")
             pij = self.calculateP(qij) 
-    #         np.savetxt('models/P_%s.csv' % self.name, pij, delimiter=",")
-            print qij[0:5]
-            print pij[0:5]
             
             for epoch in range(cluster_train_epochs):
                 cluster_train_error = 0
                 cluster_train_total_batches = 0
                 for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
-                    #qij = getSoftAssignments(batch[0])
-                    #pij = self.calculateP(qij, batch_size)
                     cluster_train_error += trainForClustering(batch[0], pij[i*batch_size:(i+1)*batch_size])
                     cluster_train_total_batches += 1
-            print 'Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, cluster_train_epochs, cluster_train_error / cluster_train_total_batches)
+            logging.info('Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, cluster_train_epochs, cluster_train_error / cluster_train_total_batches))
             
             Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
-            idx = 0
-            for batch in dataset.iterate_minibatches(train_set, batch_size, shuffle=False):
-                Z[idx * batch_size:(idx + 1) * batch_size] = self.predictEncoding(batch[0])
-                idx = idx + 1
+            for i,batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
+                Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
         
             kmeans = KMeans(init='k-means++', n_clusters=10)
             kmeans.fit(Z)
             cluster_centers = kmeans.cluster_centers_
-            print '%-5s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % ('1', metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
+            logging.info( '%-5s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (_iter+1, metrics.homogeneity_score(dataset.train_labels, kmeans.labels_),
             metrics.completeness_score(dataset.train_labels, kmeans.labels_),
             metrics.v_measure_score(dataset.train_labels, kmeans.labels_),
             metrics.adjusted_rand_score(dataset.train_labels, kmeans.labels_),
-            metrics.adjusted_mutual_info_score(dataset.train_labels, kmeans.labels_))
-    
+            metrics.adjusted_mutual_info_score(dataset.train_labels, kmeans.labels_)))
+            logging.info("")
+            
     def printLayers(self):
         layers = get_all_layers(self.network)
-        # shape_i = (500,1,28,28)
         for l in layers:
-            print type(l)
-            # print l.get_output_shape_for(shape_i)
-            # shape_i = l.get_output_shape_for(shape_i)
+            logging.info (type(l))
 
     def calculateP(self, Q):
         f = Q.sum(axis=0)

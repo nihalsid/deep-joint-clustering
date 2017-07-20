@@ -58,9 +58,6 @@ class Dataset(object):
             yield inputs[excerpt], targets[excerpt]
 
 def rescaleReshapeAndSaveImage(image_sample, out_filename):
-    # print image_sample.shape
-    # print mu.shape
-    # print sigma.shape
     image_sample = ((image_sample - np.amin(image_sample)) /(np.amax(image_sample) - np.amin(image_sample))) * 255;
     image_sample = np.rint(image_sample).astype(int)
     image_sample = np.clip(image_sample, a_min=0, a_max=255).astype('uint8')

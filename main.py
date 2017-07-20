@@ -10,7 +10,9 @@ from sklearn.cluster.k_means_ import KMeans
 
 from misc import Dataset, rescaleReshapeAndSaveImage
 from network import DCJC
+import logging
 
+logging.basicConfig(format='[%(asctime)s]   %(message)s', datefmt='%m/%d %I:%M:%S', level=logging.DEBUG)
 
 arch0 = {
     'use_inverse_layers': False,
@@ -201,17 +203,16 @@ arch6 = {
 }
 
 def testOnlyConvAutoEncoder():
-    print("\nLoading dataset...")
+    logging.info("Loading dataset")
     dataset = Dataset()
     dataset.loadDataSet()
     test_image_index = 2
     rescaleReshapeAndSaveImage(dataset.train_input[test_image_index][0], 'outputs/input_' + str(test_image_index) + '.png')
-    print("Done loading dataset\n")
-    print("Creating network...")
+    logging.info("Done loading dataset")
+    logging.info("Creating network")
     dcjc = DCJC(arch5)
-    dcjc.printLayers()
-    print("Done creating network\n")
-    print("Starting training...")
+    logging.info("Done creating network")
+    logging.info("Starting training")
     num_epochs = 50
     for epoch in range(num_epochs):
         # In each epoch, we do a full pass over the training data:
@@ -230,36 +231,35 @@ def testOnlyConvAutoEncoder():
             validation_error += err
             validation_batch_count += 1
         rescaleReshapeAndSaveImage(dcjc.predictReconstruction([dataset.train_input[test_image_index]])[0][0], 'outputs/' + str(epoch + 1) + '.png')
-        print("Epoch {} of {} took {:.3f}s".format(epoch + 1, num_epochs, time.time() - start_time))
-        print("  training loss:\t\t{:.6f}".format(train_error / train_batch_count))
-        print("  validation loss:\t\t{:.6f}".format(validation_error / validation_batch_count))
+        logging.info("Epoch {} of {} took {:.3f}s".format(epoch + 1, num_epochs, time.time() - start_time))
+        logging.info("  training loss:\t\t{:.6f}".format(train_error / train_batch_count))
+        logging.info("  validation loss:\t\t{:.6f}".format(validation_error / validation_batch_count))
 
 def testOnlyClusterInitialization(arch, epochs):
-    print("\nLoading dataset...")
+    logging.info("Loading dataset")
     dataset = Dataset()
     dataset.loadDataSet()
-    print("Done loading dataset\n")
-    print("Creating network...")
+    logging.info("Done loading dataset")
+    logging.info("Creating network")
     dcjc = DCJC(arch)
-    dcjc.printLayers()
-    print("Done creating network\n")
-    print("Starting training...")
+    logging.info("Done creating network")
+    logging.info("Starting training")
     dcjc.pretrainWithData(dataset, epochs);
     
 def evaluateKMeans(data, labels, method_name):
     kmeans = KMeans(n_clusters=10, n_init=20)
     kmeans.fit(data)
-    print '%-30s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (method_name, metrics.homogeneity_score(labels, kmeans.labels_),
+    logging.info( '%-30s     %8.3f     %8.3f     %8.3f     %8.3f     %8.3f' % (method_name, metrics.homogeneity_score(labels, kmeans.labels_),
          metrics.completeness_score(labels, kmeans.labels_),
          metrics.v_measure_score(labels, kmeans.labels_),
          metrics.adjusted_rand_score(labels, kmeans.labels_),
-         metrics.adjusted_mutual_info_score(labels, kmeans.labels_))
+         metrics.adjusted_mutual_info_score(labels, kmeans.labels_)))
 
 def testKMeans(methods):
-    print 'Initial Cluster Quality Comparison'
-    print(99 * '_')
-    print('%-30s     %8s     %8s     %8s     %8s     %8s' % ('method', 'homo', 'compl', 'v-meas', 'ARI', 'AMI'))
-    print(99 * '_') 
+    logging.info('Initial Cluster Quality Comparison')
+    logging.info(99 * '_')
+    logging.info('%-30s     %8s     %8s     %8s     %8s     %8s' % ('method', 'homo', 'compl', 'v-meas', 'ARI', 'AMI'))
+    logging.info(99 * '_') 
     dataset = Dataset()
     dataset.loadDataSet()
     # evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image')
@@ -267,15 +267,15 @@ def testKMeans(methods):
         Z = numpy.load('models/z_' + m['name'] + '.npy')
         evaluateKMeans(Z, dataset.train_labels, m['name'])
 
-def testOnlyClusterImprovement(arch, epochs): 
-    print("\nLoading dataset...")
+def testOnlyClusterImprovement(arch, epochs, repeats): 
+    logging.info("Loading dataset")
     dataset = Dataset()
     dataset.loadDataSet()
-    print("Done loading dataset\n")
-    print("Creating network...")
+    logging.info("Done loading dataset")
+    logging.info("Creating network")
     dcjc = DCJC(arch)
-    print("Starting cluster improvement")
-    dcjc.doClustering(dataset, epochs)
+    logging.info("Starting cluster improvement")
+    dcjc.doClustering(dataset, epochs, repeats)
     
 if __name__ == '__main__':
 #     testOnlyClusterInitialization(arch5, 1)
@@ -283,6 +283,6 @@ if __name__ == '__main__':
 #     testOnlyClusterInitialization(arch4, 1) 
 #     testOnlyClusterInitialization(arch3, 1)    
 #     testOnlyClusterInitialization(arch2, 1)
-    testOnlyClusterInitialization(arch0, 30)
-    testKMeans([arch0])#([arch5, arch6, arch4, arch3, arch2, arch0])
-    testOnlyClusterImprovement(arch0, 30)
+    testOnlyClusterInitialization(arch0, 50)
+    testKMeans([arch0])  # ([arch5, arch6, arch4, arch3, arch2, arch0])
+    testOnlyClusterImprovement(arch0, 50, 20)
