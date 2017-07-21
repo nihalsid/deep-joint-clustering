@@ -64,7 +64,7 @@ arch1 = {
 }
 
 arch2 = {
-'use_inverse_layers': True,
+'use_inverse_layers': False,
 'name':'c-5-32_p_c-5-32_p',
 'layers_encode': [
       {
@@ -95,7 +95,7 @@ arch2 = {
 }
 
 arch3 = {
-'use_inverse_layers': True,
+'use_inverse_layers': False,
 'name':'c-6-5_p',
 'layers_encode': [
       {
@@ -118,7 +118,7 @@ arch3 = {
 
 arch4 = {
 # Half of arch 2
-'use_inverse_layers': True,
+'use_inverse_layers': False,
 'name': 'c-5-32_p',
 'layers_encode': [
       {
@@ -139,8 +139,6 @@ arch4 = {
 }
 
 arch5 = {
-# Arch 4 with Fully connected encode layer
-# Train accuracy = 10, irrespective of number of layers
 'use_inverse_layers': True,
 'name': 'c-5-32_p_fc-10',
 'layers_encode': [
@@ -192,6 +190,43 @@ arch6 = {
     ]
 }
 
+arch8 = {
+'use_inverse_layers': False,
+'name': 'c-3-32_p_c-3-64_p_fc-10',
+'layers_encode': [
+        {
+        'layer_type':'Input',
+        'output_shape': [1, 28, 28]
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 32,
+        'filter_size': (3, 3),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 64,
+        'filter_size': (3, 3),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Encode',
+        'encode_size':10,
+        'non_linearity': 'rectify'
+        },
+    ]
+}
+
+
 arch7 = {
 'use_inverse_layers': False,
 'name': 'c-3-32_p_c-3-64_p_fc-32',
@@ -213,6 +248,32 @@ arch7 = {
         {
         'layer_type':'Conv2D',
         'num_filters': 64,
+        'filter_size': (3, 3),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Encode',
+        'encode_size':32,
+        'non_linearity': 'rectify'
+        },
+    ]
+}
+
+arch9 = {
+'use_inverse_layers': False,
+'name': 'c-3-32_p_fc-32',
+'layers_encode': [
+        {
+        'layer_type':'Input',
+        'output_shape': [1, 28, 28]
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 32,
         'filter_size': (3, 3),
         'non_linearity': 'rectify'
         },

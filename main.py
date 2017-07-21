@@ -79,11 +79,9 @@ def testOnlyClusterImprovement(arch, epochs, repeats):
     dcjc.doClustering(dataset, True, epochs, repeats)
     
 if __name__ == '__main__':
-#    testOnlyClusterInitialization(arch5, 1)
-#     testOnlyClusterInitialization(arch7, 100)
-#     testOnlyClusterInitialization(arch4, 1) 
-#     testOnlyClusterInitialization(arch3, 1)    
-#     testOnlyClusterInitialization(arch2, 1)
-#     testOnlyClusterInitialization(arch0, 50)
-    testKMeans([models.arch7])  # ([arch5, arch6, arch4, arch3, arch2, arch0])
-    testOnlyClusterImprovement(models.arch7, 1, 20)
+    testOnlyClusterInitialization(models.arch0, 500)
+    testOnlyClusterInitialization(models.arch7, 500)
+    testOnlyClusterInitialization(models.arch8, 500)
+    testOnlyClusterInitialization(models.arch9, 500)    
+    testKMeans([models.arch0, models.arch7, models.arch8, models.arch9])
+#     testOnlyClusterImprovement(models.arch7, 1, 20)

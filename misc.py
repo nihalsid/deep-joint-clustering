@@ -23,10 +23,14 @@ class Dataset(object):
         self.train_input, self.train_target, self.train_input_flat, self.train_labels = self.prepareDatasetForAutoencoder(train_set[0], train_set[1])
         self.valid_input, self.valid_target, self.valid_input_flat, self.valid_labels = self.prepareDatasetForAutoencoder(valid_set[0], valid_set[1])
         self.test_input, self.test_target, self.test_input_flat, self.test_labels = self.prepareDatasetForAutoencoder(test_set[0], test_set[1])
-        self.train_input = self.train_input[0:10000]
-        self.train_target = self.train_target[0:10000]
-        self.train_labels = self.train_labels[0:10000]
-        self.train_input_flat = self.train_input_flat[0:10000]
+        self.train_input = np.concatenate((self.train_input, self.valid_input, self.test_input))
+        self.train_target = np.concatenate((self.train_target, self.valid_target, self.test_target))
+        self.train_labels = np.concatenate((self.train_labels, self.valid_labels, self.test_labels))
+        self.train_input_flat = np.concatenate((self.train_input_flat, self.valid_input_flat, self.test_input_flat))
+#         self.train_input = self.train_input[0:10000]
+#         self.train_target = self.train_target[0:10000]
+#         self.train_labels = self.train_labels[0:10000]
+#         self.train_input_flat = self.train_input_flat[0:10000]
         
     def prepareDatasetForAutoencoder(self, inputs, targets):
         X = inputs
@@ -43,6 +47,7 @@ class Dataset(object):
             inputs = self.train_input_flat
             if targets is None:
                 targets = self.train_input_flat
+                
         elif set_type == 'validation':
             inputs = self.valid_input
             if targets is None:
@@ -77,5 +82,3 @@ def evaluateKMeans(data, labels, method_name):
     kmeans = KMeans(n_clusters=10, n_init=20)
     kmeans.fit(data)
     return getClusterMetricString(method_name, labels, kmeans.labels_), kmeans.cluster_centers_
-
-    
