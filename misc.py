@@ -33,21 +33,24 @@ class Dataset(object):
         X = X.reshape((-1, 1, 28, 28)) 
         return (X, X, X.reshape((-1, 28 * 28)), targets)
 
-    def iterate_minibatches(self, set_type, batch_size, shuffle=False):
+    def iterate_minibatches(self, set_type, batch_size, targets=None, shuffle=False):
         inputs = None
-        targets = None
         if set_type == 'train':
             inputs = self.train_input
-            targets = self.train_target
+            if targets is None:
+                targets = self.train_target
         elif set_type == 'train_flat':
             inputs = self.train_input_flat
-            targets = self.train_input_flat
+            if targets is None:
+                targets = self.train_input_flat
         elif set_type == 'validation':
             inputs = self.valid_input
-            targets = self.valid_target
+            if targets is None:
+                targets = self.valid_target
         elif set_type == 'test':
             inputs = self.test_input
-            targets = self.test_target
+            if targets is None:
+                targets = self.test_target
         assert len(inputs) == len(targets)
         if shuffle:
             indices = np.arange(len(inputs))
@@ -59,6 +62,7 @@ class Dataset(object):
                 excerpt = slice(start_idx, start_idx + batch_size)
             yield inputs[excerpt], targets[excerpt]
 
+    
 def rescaleReshapeAndSaveImage(image_sample, out_filename):
     image_sample = ((image_sample - np.amin(image_sample)) / (np.amax(image_sample) - np.amin(image_sample))) * 255;
     image_sample = np.rint(image_sample).astype(int)
@@ -72,6 +76,6 @@ def getClusterMetricString(method_name, labels_true, labels_pred):
 def evaluateKMeans(data, labels, method_name):
     kmeans = KMeans(n_clusters=10, n_init=20)
     kmeans.fit(data)
-    return getClusterMetricString(method_name, labels, kmeans.labels_)
+    return getClusterMetricString(method_name, labels, kmeans.labels_), kmeans.cluster_centers_
 
     

@@ -7,7 +7,7 @@ import time
 import numpy
 
 from misc import Dataset, rescaleReshapeAndSaveImage, evaluateKMeans
-from models import arch7
+import models
 from network import DCJC, rootLogger
 
 
@@ -62,10 +62,10 @@ def testKMeans(methods):
     rootLogger.info(60 * '_') 
     dataset = Dataset()
     dataset.loadDataSet()
-    #rootLogger.info(evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image'))
+    #rootLogger.info(evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image')[0])
     for m in methods:
         Z = numpy.load('models/z_' + m['name'] + '.npy')
-        rootLogger.info(evaluateKMeans(Z, dataset.train_labels, m['name']))
+        rootLogger.info(evaluateKMeans(Z, dataset.train_labels, m['name'])[0])
     rootLogger.info(60 * '_') 
     
 def testOnlyClusterImprovement(arch, epochs, repeats): 
@@ -80,10 +80,10 @@ def testOnlyClusterImprovement(arch, epochs, repeats):
     
 if __name__ == '__main__':
 #    testOnlyClusterInitialization(arch5, 1)
-    testOnlyClusterInitialization(arch7, 100)
+#     testOnlyClusterInitialization(arch7, 100)
 #     testOnlyClusterInitialization(arch4, 1) 
 #     testOnlyClusterInitialization(arch3, 1)    
 #     testOnlyClusterInitialization(arch2, 1)
 #     testOnlyClusterInitialization(arch0, 50)
-    testKMeans([arch7])  # ([arch5, arch6, arch4, arch3, arch2, arch0])
-#     testOnlyClusterImprovement(arch0, 100, 20)
+    testKMeans([models.arch7])  # ([arch5, arch6, arch4, arch3, arch2, arch0])
+    testOnlyClusterImprovement(models.arch7, 20, 20)

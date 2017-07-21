@@ -10,10 +10,8 @@ import logging
 from lasagne import layers
 import lasagne
 from lasagne.layers.helper import get_all_layers
-from sklearn.cluster.k_means_ import KMeans
 import theano
 
-from misc import getClusterMetricString
 import numpy as np
 import theano.tensor as T
 from misc import evaluateKMeans
@@ -87,7 +85,7 @@ class DCJC(object):
             self.input_var = T.tensor4('input_var')
             self.target_var = T.tensor4('target_var')
         self.network = self.getNetworkExpression(network_description)
-        rootLogger.info("Network: "+self.networkToStr())
+        rootLogger.info("Network: " + self.networkToStr())
         recon_prediction_expression = layers.get_output(self.network)
         encode_prediction_expression = layers.get_output(self.encode_layer, deterministic=True)
         loss = self.getReconstructionLossExpression(recon_prediction_expression, self.target_var)
@@ -113,12 +111,12 @@ class DCJC(object):
                 pretrain_total_batches += 1
             # REMOVE THIS - JUST FOR DEBUGGING#
             ###############
-            if epoch%1 == 0:
+            if epoch % 1 == 0:
                 for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
                     Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
-                rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d/%d [%.4f]"%(epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches)))
+                rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d/%d [%.4f]" % (epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches))[0])
             else:
-                rootLogger.info("%-30s     %8s     %8s"%("%d/%d [%.4f]"%(epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches),"",""))
+                rootLogger.info("%-30s     %8s     %8s" % ("%d/%d [%.4f]" % (epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches), "", ""))
             ###############
         
         for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
@@ -133,24 +131,21 @@ class DCJC(object):
             param_values = [f['arr_%d' % i] for i in range(len(f.files))]
         lasagne.layers.set_all_param_values(self.network, param_values)
         Z = np.load('models/z_%s.npy' % self.name)
-        kmeans = KMeans(init='k-means++', n_clusters=10)
-        kmeans.fit(Z)
-        cluster_centers = kmeans.cluster_centers_
-        rootLogger.info(getClusterMetricString('Initial', dataset.train_labels, kmeans.labels_))
-        
+        quality_desc, cluster_centers = evaluateKMeans(Z, dataset.train_labels, 'Initial')
+        rootLogger.info(quality_desc)
         dec_network = ClusteringLayer(self.encode_layer, 10, cluster_centers, batch_size, self.encode_size)
-        
-        clustering_loss = self.getClusteringLossExpression(layers.get_output(dec_network), P)
-        reconstruction_loss = self.getReconstructionLossExpression(layers.get_output(self.network), self.target_var)
+        dec_output_exp = layers.get_output(dec_network, deterministic=True)
+        encode_output_exp = layers.get_output(self.network, deterministic=True)
+        clustering_loss = self.getClusteringLossExpression(dec_output_exp, P)
+        reconstruction_loss = self.getReconstructionLossExpression(encode_output_exp, self.target_var)
         params_ae = lasagne.layers.get_all_params(self.network, trainable=True)
         params_dec = lasagne.layers.get_all_params(dec_network, trainable=True)
         
         w_cluster_loss = 1
-        
+        w_reconstruction_loss = 0
         total_loss = clustering_loss
         if (complete_loss):
-            total_loss = w_cluster_loss * total_loss + reconstruction_loss 
-            total_loss *= 0.3
+            total_loss = w_cluster_loss * total_loss + w_reconstruction_loss * reconstruction_loss 
         all_params = params_dec
         if complete_loss:
             all_params.extend(params_ae)
@@ -158,7 +153,7 @@ class DCJC(object):
 
         updates = lasagne.updates.adam(total_loss, all_params)
         
-        getSoftAssignments = theano.function([self.input_var], layers.get_output(dec_network))
+        getSoftAssignments = theano.function([self.input_var], dec_output_exp)
         
         trainFunction = None
         if complete_loss:
@@ -176,26 +171,26 @@ class DCJC(object):
                 qij[i * batch_size: (i + 1) * batch_size] = getSoftAssignments(batch[0])
             pij = self.calculateP(qij) 
             
-            for epoch in range(cluster_train_epochs):
+            for _epoch in range(cluster_train_epochs):
                 cluster_train_error = 0
                 cluster_train_total_batches = 0
-                for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
+                for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, pij, shuffle=True)):
                     if (complete_loss):
-                        cluster_train_error += trainFunction(batch[0], batch[0], pij[i * batch_size:(i + 1) * batch_size])
+                        cluster_train_error += trainFunction(batch[0], batch[0], batch[1])
                     else:
-                        cluster_train_error += trainFunction(batch[0], pij[i * batch_size:(i + 1) * batch_size])
-                    cluster_train_total_batches += 1
-            rootLogger.info('Done with epoch %d/%d [TE: %.4f]' % (epoch + 1, cluster_train_epochs, cluster_train_error / cluster_train_total_batches))
-            
+                        cluster_train_error += trainFunction(batch[0], batch[1])
+                    cluster_train_total_batches += 1            
+                '''
+                Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
+                for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
+                    Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
+                rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d.%d/%d.%d [%.4f]" % (_iter, _epoch + 1, repeats, cluster_train_epochs, cluster_train_error / cluster_train_total_batches))[0])
+                '''
             Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
             for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
                 Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
-        
-            kmeans = KMeans(init='k-means++', n_clusters=10)
-            kmeans.fit(Z)
-            cluster_centers = kmeans.cluster_centers_
-            rootLogger.info(getClusterMetricString('Iteration-%d' % _iter, dataset.train_labels, kmeans.labels_))
-
+            rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d/%d [%.4f]" % (_iter, repeats, cluster_train_error / cluster_train_total_batches))[0])
+    
     def calculateP(self, Q):
         f = Q.sum(axis=0)
         pij_numerator = Q * Q
@@ -251,7 +246,7 @@ class DCJC(object):
             return network
         elif (layer_definition['layer_type'] == 'Encode'):
             if self.network_type == 'CAE':
-                #network = lasagne.layers.flatten(network, name='fl')
+                # network = lasagne.layers.flatten(network, name='fl')
                 network = lasagne.layers.DenseLayer(network, num_units=layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='fc[{}]'.format(layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2]))
                 network = lasagne.layers.DenseLayer(network, num_units=layer_definition['encode_size'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='fc[{}]'.format(layer_definition['encode_size']))
                 network = lasagne.layers.GaussianNoiseLayer(network, 0.15, name='noi')
@@ -280,7 +275,7 @@ class DCJC(object):
             if (layer['layer_type'] == 'MaxPool2D'):
                 layer['output_shape'] = [last_layer_dimensions[0], last_layer_dimensions[1] / layer['filter_size'][0], last_layer_dimensions[2] / layer['filter_size'][1]]
             elif (layer['layer_type'] == 'Conv2D'):
-                layer['output_shape'] = [layer['num_filters'], last_layer_dimensions[1] - (layer['filter_size'][0] + 1)*0 , last_layer_dimensions[2] - (layer['filter_size'][1] + 1)*0]
+                layer['output_shape'] = [layer['num_filters'], last_layer_dimensions[1] - (layer['filter_size'][0] + 1) * 0 , last_layer_dimensions[2] - (layer['filter_size'][1] + 1) * 0]
             elif (layer['layer_type'] == 'Encode'):
                 if self.network_type == 'CAE':
                     layer['output_shape'] = last_layer_dimensions
@@ -324,7 +319,7 @@ class DCJC(object):
             for i in range(len(layer_list) - 1, 0, -1):
                 if any(type(layer_list[i]) is invertible_layer for invertible_layer in invertible_layers):
                     network = lasagne.layers.InverseLayer(network, layer_list[i], name='Inv[' + layer_list[i].name + ']')
-            #network = lasagne.layers.NonlinearityLayer(network, lasagne.nonlinearities.sigmoid, name='smd')
+            # network = lasagne.layers.NonlinearityLayer(network, lasagne.nonlinearities.sigmoid, name='smd')
         else:
             self.populateMirroredNetwork(network_description)
             for i, layer in enumerate(network_description['layers_decode']):
