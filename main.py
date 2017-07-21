@@ -210,7 +210,7 @@ arch7 = {
         'layer_type':'Conv2D',
         'num_filters': 32,
         'filter_size': (3, 3),
-        'non_linearity': 'elu'
+        'non_linearity': 'rectify'
         },
         {
         'layer_type':'MaxPool2D',
@@ -220,7 +220,7 @@ arch7 = {
         'layer_type':'Conv2D',
         'num_filters': 64,
         'filter_size': (3, 3),
-        'non_linearity': 'elu'
+        'non_linearity': 'rectify'
         },
         {
         'layer_type':'MaxPool2D',
@@ -229,7 +229,7 @@ arch7 = {
         {
         'layer_type':'Encode',
         'encode_size':32,
-        'non_linearity': 'elu'
+        'non_linearity': 'rectify'
         },
     ]
 }

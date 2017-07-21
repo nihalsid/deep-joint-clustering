@@ -125,7 +125,6 @@ class DCJC(object):
             Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])           
         np.save('models/z_%s.npy' % self.name, Z)
         np.savez('models/m_%s.npz' % self.name, *lasagne.layers.get_all_param_values(self.network))
-        np.savetxt('models/z_%s.csv' % self.name, Z, delimiter=",")
     
     def doClustering(self, dataset, complete_loss, cluster_train_epochs, repeats):
         P = T.matrix('P')
@@ -252,7 +251,8 @@ class DCJC(object):
             return network
         elif (layer_definition['layer_type'] == 'Encode'):
             if self.network_type == 'CAE':
-                network = lasagne.layers.flatten(network, name='fl')
+                #network = lasagne.layers.flatten(network, name='fl')
+                network = lasagne.layers.DenseLayer(network, num_units=layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='fc[{}]'.format(layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2]))
                 network = lasagne.layers.DenseLayer(network, num_units=layer_definition['encode_size'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='fc[{}]'.format(layer_definition['encode_size']))
                 network = lasagne.layers.GaussianNoiseLayer(network, 0.15, name='noi')
                 self.encode_layer = network
@@ -265,7 +265,7 @@ class DCJC(object):
                 self.encode_size = layer_definition['num_units']
                 return network
         elif (layer_definition['layer_type'] == 'Unpool2D'):
-            return Unpool2DLayer(network, (layer_definition['filter_size'][0], layer_definition['filter_size'][1]), name=' unp[{}]'.format(str(layer_definition['filter_size'][0]) + 'x' + str(layer_definition['filter_size'][1])))
+            return Unpool2DLayer(network, (layer_definition['filter_size'][0], layer_definition['filter_size'][1]), name='ups[{}]'.format(str(layer_definition['filter_size'][0]) + 'x' + str(layer_definition['filter_size'][1])))
         elif (layer_definition['layer_type'] == 'Deconv2D'):
             return layers.Deconv2DLayer(network, crop='same', num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='{}[{}]'.format(layer_definition['num_filters'], 'x'.join([str(fs) for fs in layer_definition['filter_size']])))
         elif (layer_definition['layer_type'] == 'Input'):
