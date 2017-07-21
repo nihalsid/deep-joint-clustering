@@ -126,7 +126,7 @@ class DCJC(object):
     
     def doClustering(self, dataset, complete_loss, cluster_train_epochs, repeats):
         P = T.matrix('P')
-        batch_size = 100
+        batch_size = 250
         with np.load('models/m_%s.npz' % self.name) as f:
             param_values = [f['arr_%d' % i] for i in range(len(f.files))]
         lasagne.layers.set_all_param_values(self.network, param_values)
@@ -142,10 +142,10 @@ class DCJC(object):
         params_dec = lasagne.layers.get_all_params(dec_network, trainable=True)
         
         w_cluster_loss = 1
-        w_reconstruction_loss = 0
-        total_loss = clustering_loss
+        w_reconstruction_loss = 1
+        total_loss = w_cluster_loss * clustering_loss
         if (complete_loss):
-            total_loss = w_cluster_loss * total_loss + w_reconstruction_loss * reconstruction_loss 
+            total_loss =  total_loss + w_reconstruction_loss * reconstruction_loss 
         all_params = params_dec
         if complete_loss:
             all_params.extend(params_ae)
@@ -180,13 +180,13 @@ class DCJC(object):
                     else:
                         cluster_train_error += trainFunction(batch[0], batch[1])
                     cluster_train_total_batches += 1            
+                #### CAN REMOVE - MORE THAN 1 EPOCHS WERE GIVING BAD RESULTS ####
                 '''
-                Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
                 for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
                     Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
                 rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d.%d/%d.%d [%.4f]" % (_iter, _epoch + 1, repeats, cluster_train_epochs, cluster_train_error / cluster_train_total_batches))[0])
                 '''
-            Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
+                #################################################################
             for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
                 Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
             rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d/%d [%.4f]" % (_iter, repeats, cluster_train_error / cluster_train_total_batches))[0])
@@ -194,7 +194,7 @@ class DCJC(object):
     def calculateP(self, Q):
         f = Q.sum(axis=0)
         pij_numerator = Q * Q
-        pij_numerator = pij_numerator / f;
+        pij_numerator = pij_numerator / f
         normalizer_p = pij_numerator.sum(axis=1).reshape((Q.shape[0], 1))
         P = pij_numerator / normalizer_p
         return P
@@ -319,7 +319,6 @@ class DCJC(object):
             for i in range(len(layer_list) - 1, 0, -1):
                 if any(type(layer_list[i]) is invertible_layer for invertible_layer in invertible_layers):
                     network = lasagne.layers.InverseLayer(network, layer_list[i], name='Inv[' + layer_list[i].name + ']')
-            # network = lasagne.layers.NonlinearityLayer(network, lasagne.nonlinearities.sigmoid, name='smd')
         else:
             self.populateMirroredNetwork(network_description)
             for i, layer in enumerate(network_description['layers_decode']):

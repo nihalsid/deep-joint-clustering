@@ -86,4 +86,4 @@ if __name__ == '__main__':
 #     testOnlyClusterInitialization(arch2, 1)
 #     testOnlyClusterInitialization(arch0, 50)
     testKMeans([models.arch7])  # ([arch5, arch6, arch4, arch3, arch2, arch0])
-    testOnlyClusterImprovement(models.arch7, 20, 20)
+    testOnlyClusterImprovement(models.arch7, 1, 20)
