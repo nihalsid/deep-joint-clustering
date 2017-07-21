@@ -89,7 +89,7 @@ class DCJC(object):
         self.network = self.getNetworkExpression(network_description)
         rootLogger.info("Network: "+self.networkToStr())
         recon_prediction_expression = layers.get_output(self.network)
-        encode_prediction_expression = layers.get_output(self.encode_layer)
+        encode_prediction_expression = layers.get_output(self.encode_layer, deterministic=True)
         loss = self.getReconstructionLossExpression(recon_prediction_expression, self.target_var)
         params = lasagne.layers.get_all_params(self.network, trainable=True)
         updates = lasagne.updates.adam(loss, params)
@@ -99,7 +99,7 @@ class DCJC(object):
     
     
     def pretrainWithData(self, dataset, pretrain_epochs):
-        batch_size = 100
+        batch_size = 250
         Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
         train_set = 'train'
         if self.network_type == 'AE':
@@ -113,9 +113,12 @@ class DCJC(object):
                 pretrain_total_batches += 1
             # REMOVE THIS - JUST FOR DEBUGGING#
             ###############
-            for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
-                Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
-            rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d/%d [%.4f]"%(epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches)))
+            if epoch%1 == 0:
+                for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
+                    Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
+                rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d/%d [%.4f]"%(epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches)))
+            else:
+                rootLogger.info("%-30s     %8s     %8s"%("%d/%d [%.4f]"%(epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches),"",""))
             ###############
         
         for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
@@ -213,6 +216,7 @@ class DCJC(object):
         loss = lasagne.objectives.squared_error(prediction_expression, target_var)
         loss = loss.mean()
         return loss
+
     # Functions for network construction based on architecture dictionary
         
     def getNonLinearity(self, non_linearity_name):
@@ -235,7 +239,7 @@ class DCJC(object):
             else:
                 return layers.DenseLayer(network, num_units=layer_definition['num_units'], nonlinearity=lasagne.nonlinearities.rectify, name='fc[{}]'.format(layer_definition['num_units']))
         if (layer_definition['layer_type'] == 'Conv2D'):
-            network = layers.Conv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='{}[{}]'.format(layer_definition['num_filters'], 'x'.join([str(fs) for fs in layer_definition['filter_size']])))
+            network = layers.Conv2DLayer(network, num_filters=layer_definition['num_filters'], pad='same', filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='{}[{}]'.format(layer_definition['num_filters'], 'x'.join([str(fs) for fs in layer_definition['filter_size']])))
             if (is_encode_layer):
                 self.encode_layer = lasagne.layers.flatten(network, name='fl')
                 self.encode_size = layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2]
@@ -250,6 +254,7 @@ class DCJC(object):
             if self.network_type == 'CAE':
                 network = lasagne.layers.flatten(network, name='fl')
                 network = lasagne.layers.DenseLayer(network, num_units=layer_definition['encode_size'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='fc[{}]'.format(layer_definition['encode_size']))
+                network = lasagne.layers.GaussianNoiseLayer(network, 0.15, name='noi')
                 self.encode_layer = network
                 self.encode_size = layer_definition['encode_size']
                 network = lasagne.layers.DenseLayer(network, num_units=layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='fc[{}]'.format(layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2]))
@@ -262,7 +267,7 @@ class DCJC(object):
         elif (layer_definition['layer_type'] == 'Unpool2D'):
             return Unpool2DLayer(network, (layer_definition['filter_size'][0], layer_definition['filter_size'][1]), name=' unp[{}]'.format(str(layer_definition['filter_size'][0]) + 'x' + str(layer_definition['filter_size'][1])))
         elif (layer_definition['layer_type'] == 'Deconv2D'):
-            return layers.Deconv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='{}[{}]'.format(layer_definition['num_filters'], 'x'.join([str(fs) for fs in layer_definition['filter_size']])))
+            return layers.Deconv2DLayer(network, crop='same', num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='{}[{}]'.format(layer_definition['num_filters'], 'x'.join([str(fs) for fs in layer_definition['filter_size']])))
         elif (layer_definition['layer_type'] == 'Input'):
             if self.network_type == 'CAE':
                 return layers.InputLayer(shape=(None, layer_definition['output_shape'][0], layer_definition['output_shape'][1], layer_definition['output_shape'][2]), input_var=self.input_var)
@@ -275,7 +280,7 @@ class DCJC(object):
             if (layer['layer_type'] == 'MaxPool2D'):
                 layer['output_shape'] = [last_layer_dimensions[0], last_layer_dimensions[1] / layer['filter_size'][0], last_layer_dimensions[2] / layer['filter_size'][1]]
             elif (layer['layer_type'] == 'Conv2D'):
-                layer['output_shape'] = [layer['num_filters'], last_layer_dimensions[1] - layer['filter_size'][0] + 1 , last_layer_dimensions[2] - layer['filter_size'][1] + 1]
+                layer['output_shape'] = [layer['num_filters'], last_layer_dimensions[1] - (layer['filter_size'][0] + 1)*0 , last_layer_dimensions[2] - (layer['filter_size'][1] + 1)*0]
             elif (layer['layer_type'] == 'Encode'):
                 if self.network_type == 'CAE':
                     layer['output_shape'] = last_layer_dimensions
@@ -313,11 +318,13 @@ class DCJC(object):
         self.populateNetworkOutputShapes(network_description)
         for i, layer in enumerate(network_description['layers_encode']):
             network = self.getLayer(network, layer, i == len(network_description['layers_encode']) - 1)
+            
         layer_list = get_all_layers(network)
         if network_description['use_inverse_layers'] == True:
             for i in range(len(layer_list) - 1, 0, -1):
                 if any(type(layer_list[i]) is invertible_layer for invertible_layer in invertible_layers):
                     network = lasagne.layers.InverseLayer(network, layer_list[i], name='Inv[' + layer_list[i].name + ']')
+            #network = lasagne.layers.NonlinearityLayer(network, lasagne.nonlinearities.sigmoid, name='smd')
         else:
             self.populateMirroredNetwork(network_description)
             for i, layer in enumerate(network_description['layers_decode']):

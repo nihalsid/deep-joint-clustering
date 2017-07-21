@@ -199,7 +199,7 @@ arch6 = {
 }
 
 arch7 = {
-'use_inverse_layers': True,
+'use_inverse_layers': False,
 'name': 'c-3-32_p_c-3-64_p_fc-32',
 'layers_encode': [
         {
@@ -303,7 +303,7 @@ def testOnlyClusterImprovement(arch, epochs, repeats):
     
 if __name__ == '__main__':
 #    testOnlyClusterInitialization(arch5, 1)
-    testOnlyClusterInitialization(arch7, 400)
+    testOnlyClusterInitialization(arch7, 100)
 #     testOnlyClusterInitialization(arch4, 1) 
 #     testOnlyClusterInitialization(arch3, 1)    
 #     testOnlyClusterInitialization(arch2, 1)
