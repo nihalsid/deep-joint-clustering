@@ -14,7 +14,8 @@ import theano
 
 import numpy as np
 import theano.tensor as T
-from misc import evaluateKMeans
+from misc import evaluateKMeans,visualizeData
+from customlayers import *
 
 
 logFormatter = logging.Formatter("[%(asctime)s]  %(message)s", datefmt='%m/%d %I:%M:%S')
@@ -29,55 +30,13 @@ rootLogger.addHandler(fileHandler)
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 rootLogger.addHandler(consoleHandler)
-
-class Unpool2DLayer(layers.Layer):
-    """
-    This layer performs unpooling over the last two dimensions
-    of a 4D tensor.
-    """
-    def __init__(self, incoming, ds, **kwargs):
-        super(Unpool2DLayer, self).__init__(incoming, **kwargs)
-        self.ds = ds
-    
-    def get_output_shape_for(self, input_shape):
-        output_shape = list(input_shape)
-        output_shape[2] = input_shape[2] * self.ds[0]
-        output_shape[3] = input_shape[3] * self.ds[1]
-        return tuple(output_shape)
-
-    def get_output_for(self, incoming, **kwargs):
-        ds = self.ds
-        return incoming.repeat(ds[0], axis=2).repeat(ds[1], axis=3)
-
-class ClusteringLayer(layers.Layer):
-
-    def __init__(self, incoming, num_clusters, initial_clusters, num_samples, latent_space_dim, **kwargs):
-        super(ClusteringLayer, self).__init__(incoming, **kwargs)
-        self.num_clusters = num_clusters
-        self.W = self.add_param(theano.shared(initial_clusters), initial_clusters.shape, 'W')
-        self.num_samples = num_samples
-        self.latent_space_dim = latent_space_dim
-        
-    def get_output_shape_for(self, input_shape):
-        return (input_shape[0], self.num_clusters)
-    
-    # z corresponds to cluster assignement 
-    # u corresponds to cluster center 
-    def get_output_for(self, incoming, **kwargs):
-        z_expanded = incoming.reshape((self.num_samples, 1, self.latent_space_dim))
-        z_expanded = T.tile(z_expanded, (1, self.num_clusters, 1)) 
-        u_expanded = T.tile(self.W, (self.num_samples, 1, 1))
-        distances_from_cluster_centers = (z_expanded - u_expanded).norm(2, axis=2)
-        qij_numerator = 1 + distances_from_cluster_centers * distances_from_cluster_centers
-        qij_numerator = 1 / qij_numerator
-        normalizer_q = qij_numerator.sum(axis=1).reshape((self.num_samples, 1))
-        return qij_numerator / normalizer_q;
         
 invertible_layers = [layers.Conv2DLayer, layers.MaxPool2DLayer]
 
 class DCJC(object):
     
     def __init__(self, network_description):
+        
         self.name = network_description['name']
         self.setNetworkTypeBasedOnName()
         if (self.network_type == 'AE'):
@@ -98,7 +57,8 @@ class DCJC(object):
         self.predictEncoding = theano.function([self.input_var], encode_prediction_expression)
     
     
-    def pretrainWithData(self, dataset, pretrain_epochs):
+    def pretrainWithData(self, dataset, pretrain_epochs,plot=False):
+        
         batch_size = 250
         Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
         train_set = 'train'
@@ -122,18 +82,23 @@ class DCJC(object):
             ###############
         
         for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
-            Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])           
-        np.save('models/z_%s.npy' % self.name, Z)
-        np.savez('models/m_%s.npz' % self.name, *lasagne.layers.get_all_param_values(self.network))
+            Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
+
+        if plot:
+            visualizeData(Z,dataset.train_labels,dataset.cluster_nrs)   
+
+        np.save('models/%s/z_%s.npy' % (dataset.name,self.name), Z)
+        np.savez('models/%s/m_%s.npz' % (dataset.name,self.name), *lasagne.layers.get_all_param_values(self.network))
     
     # load pretrained model, then either train with DEC loss jointly with reconstruction or alone
-    def doClustering(self, dataset, complete_loss, cluster_train_epochs, repeats):
+    def doClustering(self, dataset, complete_loss, cluster_train_epochs, repeats,plot=False):
+        
         P = T.matrix('P')
         batch_size = 250
-        with np.load('models/m_%s.npz' % self.name) as f:
+        with np.load('models/%s/m_%s.npz' % (dataset.name,self.name)) as f:
             param_values = [f['arr_%d' % i] for i in range(len(f.files))]
         lasagne.layers.set_all_param_values(self.network, param_values)
-        Z = np.load('models/z_%s.npy' % self.name)
+        Z = np.load('models/%s/z_%s.npy' % (dataset.name,self.name))
         quality_desc, cluster_centers = evaluateKMeans(Z, dataset.train_labels, 'Initial')
         rootLogger.info(quality_desc)
         dec_network = ClusteringLayer(self.encode_layer, 10, cluster_centers, batch_size, self.encode_size)
@@ -192,6 +157,8 @@ class DCJC(object):
                 #################################################################
             for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
                 Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
+            if plot:
+                visualizeData(Z,dataset.train_labels,dataset.cluster_nrs)   
             rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d/%d [%.4f]" % (_iter, repeats, cluster_train_error / cluster_train_total_batches))[0])
     
     def calculateP(self, Q):
@@ -341,3 +308,5 @@ class DCJC(object):
             else:
                 result += ' ' + layer.name
         return result.strip()
+
+

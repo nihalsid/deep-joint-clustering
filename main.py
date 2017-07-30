@@ -6,14 +6,15 @@ import time
 
 import numpy
 
-from misc import Dataset, rescaleReshapeAndSaveImage, evaluateKMeans
+from misc import Dataset, rescaleReshapeAndSaveImage, evaluateKMeans,visualizeData
 import models
 from network import DCJC, rootLogger
 
 
 def testOnlyConvAutoEncoder(arch):
+    
     rootLogger.info("Loading dataset")
-    dataset = Dataset()
+    dataset = Dataset('MNIST','mnist/mnist.pkl.gz',10)
     dataset.loadDataSet()
     test_image_index = 2
     rescaleReshapeAndSaveImage(dataset.train_input[test_image_index][0], 'outputs/input_' + str(test_image_index) + '.png')
@@ -35,7 +36,7 @@ def testOnlyConvAutoEncoder(arch):
         validation_error = 0
         validation_batch_count = 0
         for batch in dataset.iterate_minibatches('validation', 500, shuffle=True):
-            inputs, targets = batch
+            inputs, targets = batchtestOnlyClusterInitialization
             err = dcjc.validate(inputs, targets)
             validation_error += err
             validation_batch_count += 1
@@ -44,23 +45,30 @@ def testOnlyConvAutoEncoder(arch):
         rootLogger.info("  training loss:\t\t{:.6f}".format(train_error / train_batch_count))
         rootLogger.info("  validation loss:\t\t{:.6f}".format(validation_error / validation_batch_count))
 
-def testOnlyClusterInitialization(arch, epochs):
+def testOnlyClusterInitialization(arch, epochs,plot=[False,False]):
+    
     rootLogger.info("Loading dataset")
-    dataset = Dataset()
+    dataset = Dataset('MNIST','mnist/mnist.pkl.gz',10)
     dataset.loadDataSet()
     rootLogger.info("Done loading dataset")
+
+    if plot[0]:
+        visualizeData(dataset.train_input,dataset.train_labels,dataset.cluster_nrs)
+
     rootLogger.info("Creating network")
     dcjc = DCJC(arch)
     rootLogger.info("Done creating network")
+    
     rootLogger.info("Starting training")
-    dcjc.pretrainWithData(dataset, epochs);
+    dcjc.pretrainWithData(dataset, epochs,plot[1]);
     
 def testKMeans(methods):
+    
     rootLogger.info('Initial Cluster Quality Comparison')
     rootLogger.info(60 * '_')
     rootLogger.info('%-30s     %8s     %8s' % ('method', 'ARI', 'AMI'))
     rootLogger.info(60 * '_') 
-    dataset = Dataset()
+    dataset = Dataset('MNIST','mnist/mnist.pkl.gz',10)
     dataset.loadDataSet()
     #rootLogger.info(evaluateKMeans(dataset.train_input_flat, dataset.train_labels, 'image')[0])
     for m in methods:
@@ -68,20 +76,28 @@ def testKMeans(methods):
         rootLogger.info(evaluateKMeans(Z, dataset.train_labels, m['name'])[0])
     rootLogger.info(60 * '_') 
     
-def testOnlyClusterImprovement(arch, epochs, repeats): 
+def testOnlyClusterImprovement(arch, epochs, repeats,plot=[False,False]): 
+    
     rootLogger.info("Loading dataset")
-    dataset = Dataset()
+    dataset = Dataset('MNIST','mnist/mnist.pkl.gz',10)
     dataset.loadDataSet()
     rootLogger.info("Done loading dataset")
+
+    if plot[0]:
+        visualizeData(dataset.train_input,dataset.train_labels,dataset.cluster_nrs)
+    
     rootLogger.info("Creating network")
     dcjc = DCJC(arch)
+    
     rootLogger.info("Starting cluster improvement")
-    dcjc.doClustering(dataset, True, epochs, repeats)
+    dcjc.doClustering(dataset, True, epochs, repeats,plot[1])
+
     
 if __name__ == '__main__':
-    testOnlyClusterInitialization(models.arch0, 500)
-    testOnlyClusterInitialization(models.arch7, 500)
-    testOnlyClusterInitialization(models.arch8, 500)
-    testOnlyClusterInitialization(models.arch9, 500)    
-    testKMeans([models.arch0, models.arch7, models.arch8, models.arch9])
-#     testOnlyClusterImprovement(models.arch7, 1, 20)
+    
+    #testOnlyClusterInitialization(models.arch0, 500,plot=[False,True])
+    #testOnlyClusterInitialization(models.arch7, 500,plot=[False,True])
+    #testOnlyClusterInitialization(models.arch8, 500,plot=[False,True])
+    #testOnlyClusterInitialization(models.arch9, 500,plot=[False,True])    
+    #testKMeans([models.arch0, models.arch7, models.arch8, models.arch9])
+    testOnlyClusterImprovement(models.arch7, 20, 1,plot=[False,True])
