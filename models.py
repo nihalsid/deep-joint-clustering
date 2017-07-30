@@ -288,3 +288,123 @@ arch9 = {
         },
     ]
 }
+
+arch10 = {
+'use_inverse_layers': False,
+'name': 'c-3-32_p_c-3-64_p_fc-128',
+'layers_encode': [
+        {
+        'layer_type':'Input',
+        'output_shape': [1, 28, 28]
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 32,
+        'filter_size': (3, 3),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 64,
+        'filter_size': (3, 3),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Encode',
+        'encode_size':128,
+        'non_linearity': 'rectify'
+        },
+    ]
+}
+
+arch11 = {
+'use_inverse_layers': False,
+'name': 'c-3-32_p_c-3-64_p_fc-64',
+'layers_encode': [
+        {
+        'layer_type':'Input',
+        'output_shape': [1, 28, 28]
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 32,
+        'filter_size': (3, 3),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 64,
+        'filter_size': (3, 3),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Encode',
+        'encode_size':64,
+        'non_linearity': 'rectify'
+        },
+    ]
+}
+
+arch12 = {
+'use_inverse_layers': False,
+'name': 'c-3-32_p_c-3-64_p_c-3-128_p_fc-32',
+'layers_encode': [
+        {
+        'layer_type':'Input',
+        'output_shape': [1, 28, 28]
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 32,
+        'filter_size': (3, 3),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 64,
+        'filter_size': (3, 3),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+	},
+        {
+        'layer_type':'Conv2D',
+        'num_filters': 128,
+        'filter_size': (3, 3),
+        'non_linearity': 'rectify'
+        },
+        {
+        'layer_type':'MaxPool2D',
+        'filter_size': (2, 2),
+        },
+        {
+        'layer_type':'Encode',
+        'encode_size':32,
+        'non_linearity': 'rectify'
+        },
+    ]
+}
+
+
