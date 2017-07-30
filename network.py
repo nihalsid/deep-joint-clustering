@@ -61,6 +61,8 @@ class ClusteringLayer(layers.Layer):
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_clusters)
     
+    # z corresponds to cluster assignement 
+    # u corresponds to cluster center 
     def get_output_for(self, incoming, **kwargs):
         z_expanded = incoming.reshape((self.num_samples, 1, self.latent_space_dim))
         z_expanded = T.tile(z_expanded, (1, self.num_clusters, 1)) 
@@ -124,6 +126,7 @@ class DCJC(object):
         np.save('models/z_%s.npy' % self.name, Z)
         np.savez('models/m_%s.npz' % self.name, *lasagne.layers.get_all_param_values(self.network))
     
+    # load pretrained model, then either train with DEC loss jointly with reconstruction or alone
     def doClustering(self, dataset, complete_loss, cluster_train_epochs, repeats):
         P = T.matrix('P')
         batch_size = 250
@@ -225,7 +228,8 @@ class DCJC(object):
             self.network_type = 'AE'
         else:
             self.network_type = 'CAE'
-            
+      
+    # Returns a lasagne layer based on a layer definition dictionary      
     def getLayer(self, network, layer_definition, is_encode_layer=False, is_last_layer=False):
         if (layer_definition['layer_type'] == 'Dense'):
             if is_last_layer:
@@ -285,6 +289,7 @@ class DCJC(object):
                 layer['output_shape'] = [1, 1, layer['num_units']] 
             last_layer_dimensions = layer['output_shape']
 
+    # determine defintiion of the decoder part of the (C)AE
     def populateMirroredNetwork(self, network_description):
         network_description['layers_decode'] = [] 
         old_network_description = network_description.copy()
@@ -307,7 +312,7 @@ class DCJC(object):
                                                              'num_units':old_network_description['layers_encode'][i - 1]['output_shape'][2]
                                                              })
                 
-        
+    #     
     def getNetworkExpression(self, network_description):
         network = None
         self.populateNetworkOutputShapes(network_description)
@@ -322,7 +327,7 @@ class DCJC(object):
         else:
             self.populateMirroredNetwork(network_description)
             for i, layer in enumerate(network_description['layers_decode']):
-                network = self.getLayer(network, layer, False, i == len(network_description['layers_decode']) - 1)
+                network = self.getLayer(network, layer, False, i == len(network_description['layers_decode']) - 1) # that would make the reverse of the second layer linear ??
         return network
 
    
