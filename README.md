@@ -17,9 +17,10 @@ This repository contains codes and data for a deep learning and clustering appro
 
 
 ## Prerequesites:
-- [Install Theano](http://deeplearning.net/software/theano/install.html)
-- [Install Lasagne](http://lasagne.readthedocs.io/en/latest/user/installation.html)
 - Install Pickle : pip install pickle
 - Install Scikit learn: pip install -U scikit-learn
 - Install Cython (for tsne) : pip install cython
 - Install tsne: pip install tsne
+- [Install Theano](http://deeplearning.net/software/theano/install.html)
+- [Install Lasagne](http://lasagne.readthedocs.io/en/latest/user/installation.html)
+
