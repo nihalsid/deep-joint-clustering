@@ -91,24 +91,13 @@ def testOnlyClusterImprovement(arch, epochs, repeats,plot=[False,False]):
     
     rootLogger.info("Starting cluster improvement")
     dcjc.doClustering(dataset, True, epochs, repeats,plot[1])
-    
-# Plot the data representation only after the pretraining phase
-def plotIntermediateRepresentation(arch):
-	
-	dataset = Dataset('MNIST','mnist/mnist.pkl.gz',10)
-	dataset.loadDataSet()
-    
-	Z = numpy.load('models/MNIST/z_' + arch['name'] + '.npy')
-	rootLogger.info(evaluateKMeans(Z, dataset.train_labels, arch['name'])[0])
-	visualizeData(Z,dataset.train_labels,dataset.cluster_nrs)
 
     
 if __name__ == '__main__':
     
-    plotIntermediateRepresentation(models.arch7)
     #testOnlyClusterInitialization(models.arch0, 500,plot=[False,True])
     #testOnlyClusterInitialization(models.arch7, 500,plot=[False,True])
     #testOnlyClusterInitialization(models.arch8, 500,plot=[False,True])
     #testOnlyClusterInitialization(models.arch9, 500,plot=[False,True])    
     #testKMeans([models.arch0, models.arch7, models.arch8, models.arch9])
-    #testOnlyClusterImprovement(models.arch7, 20, 1,plot=[False,True])
+    testOnlyClusterImprovement(models.arch7, 20, 1,plot=[False,True])

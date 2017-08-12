@@ -116,8 +116,8 @@ def visualizeData(data,clust_assig=None, cluster_nrs=-1):
 
 
     # show data
-    if(clust_assig is not None): # if predicted assignements exist then color code can be used to show it
-        plt.scatter(vis_x, vis_y,s=2, c=clust_assig, cmap=plt.cm.get_cmap("jet", cluster_nrs))
+    if(clust_assig!=None): # if predicted assignements exist then color code can be used to show it
+        plt.scatter(vis_x, vis_y, c=clust_assig, cmap=plt.cm.get_cmap("jet", cluster_nrs))
         plt.colorbar(ticks=range(cluster_nrs))
         plt.clim(-0.5, 9.5)
     else:
