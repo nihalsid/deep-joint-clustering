@@ -8,70 +8,45 @@ import cPickle
 import gzip
 
 from PIL import Image
+from matplotlib import pyplot as plt
+from numpy import float32
 from sklearn import metrics
 from sklearn.cluster.k_means_ import KMeans
-from matplotlib import pyplot as plt
 from tsne import bh_sne
 
 import numpy as np
 
-# todo: write function that counts cluster numbers
-class Dataset(object):
 
-    def __init__(self
-                ,name
-                ,fname
-                ,cluster_nrs
-                ):
+class DatasetHelper(object):
+    def __init__(self, name):
+        self.name = name
+        if name == 'MNIST':
+            self.dataset = MNISTDataset()
+        elif name == 'STL':
+            self.dataset = STLDataset()
+        elif name == 'COIL20':
+            self.dataset = COIL20Dataset()
 
-        self.name           = name
-        self.fname          = fname
-        self.cluster_nrs    = cluster_nrs
+    def loadDataset(self):
+        self.input, self.labels, self.input_flat = self.dataset.loadDataset()
 
-    
-    def loadDataSet(self):
-        
-        f = gzip.open(self.fname, 'rb')
-        train_set, valid_set, test_set = cPickle.load(f)
-        f.close()
-        self.train_input, self.train_target, self.train_input_flat, self.train_labels = self.prepareDatasetForAutoencoder(train_set[0], train_set[1])
-        self.valid_input, self.valid_target, self.valid_input_flat, self.valid_labels = self.prepareDatasetForAutoencoder(valid_set[0], valid_set[1])
-        self.test_input, self.test_target, self.test_input_flat, self.test_labels = self.prepareDatasetForAutoencoder(test_set[0], test_set[1])
-        self.train_input = np.concatenate((self.train_input, self.valid_input, self.test_input))
-        self.train_target = np.concatenate((self.train_target, self.valid_target, self.test_target))
-        self.train_labels = np.concatenate((self.train_labels, self.valid_labels, self.test_labels))
-        self.train_input_flat = np.concatenate((self.train_input_flat, self.valid_input_flat, self.test_input_flat))
-#         self.train_input = self.train_input[0:10000]
-#         self.train_target = self.train_target[0:10000]
-#         self.train_labels = self.train_labels[0:10000]
-#         self.train_input_flat = self.train_input_flat[0:10000]
-        
-    def prepareDatasetForAutoencoder(self, inputs, targets):
-        
-        X = inputs
-        X = X.reshape((-1, 1, 28, 28)) 
-        return (X, X, X.reshape((-1, 28 * 28)), targets)
+    #         self.input = self.input[0:1000]
+    #         self.labels = self.labels[0:1000]
+    #         self.input_flat = self.input_flat[0:1000]
+
+    def getClusterCount(self):
+        return self.dataset.cluster_count
 
     def iterate_minibatches(self, set_type, batch_size, targets=None, shuffle=False):
-        
         inputs = None
-        if set_type == 'train':
-            inputs = self.train_input
+        if set_type == 'IMAGE':
+            inputs = self.input
             if targets is None:
-                targets = self.train_target
-        elif set_type == 'train_flat':
-            inputs = self.train_input_flat
+                targets = self.input
+        elif set_type == 'FLAT':
+            inputs = self.input_flat
             if targets is None:
-                targets = self.train_input_flat
-                
-        elif set_type == 'validation':
-            inputs = self.valid_input
-            if targets is None:
-                targets = self.valid_target
-        elif set_type == 'test':
-            inputs = self.test_input
-            if targets is None:
-                targets = self.test_target
+                targets = self.input_flat
         assert len(inputs) == len(targets)
         if shuffle:
             indices = np.arange(len(inputs))
@@ -83,30 +58,78 @@ class Dataset(object):
                 excerpt = slice(start_idx, start_idx + batch_size)
             yield inputs[excerpt], targets[excerpt]
 
-    
+
+class MNISTDataset(object):
+    def __init__(self):
+        self.cluster_count = 10
+
+    def loadDataset(self):
+        f = gzip.open('mnist/mnist.pkl.gz', 'rb')
+        train_set, _, test_set = cPickle.load(f)
+        train_input, train_input_flat, train_labels = self.prepareDatasetForAutoencoder(train_set[0], train_set[1])
+        test_input, test_input_flat, test_labels = self.prepareDatasetForAutoencoder(test_set[0], test_set[1])
+        f.close()
+        return [np.concatenate(train_input, test_input), np.concatenate(train_labels, test_labels),
+                np.concatenate(train_input_flat, test_input_flat)]
+
+    def prepareDatasetForAutoencoder(self, inputs, targets):
+        X = inputs
+        X = X.reshape((-1, 1, 28, 28))
+        return (X, X.reshape((-1, 28 * 28)), targets)
+
+
+class STLDataset(object):
+    def __init__(self):
+        self.cluster_count = 10
+
+    def loadDataset(self):
+        train_x = np.fromfile('stl/train_X.bin', dtype=np.uint8)
+        train_y = np.fromfile('stl/train_y.bin', dtype=np.uint8)
+        test_x = np.fromfile('stl/train_X.bin', dtype=np.uint8)
+        test_y = np.fromfile('stl/train_y.bin', dtype=np.uint8)
+        train_input = np.reshape(train_x, (-1, 3, 96, 96))
+        train_labels = train_y
+        train_input_flat = np.reshape(test_x, (-1, 1, 3 * 96 * 96))
+        test_input = np.reshape(test_x, (-1, 3, 96, 96))
+        test_labels = test_y
+        test_input_flat = np.reshape(test_x, (-1, 1, 3 * 96 * 96))
+        return [np.concatenate(train_input, test_input), np.concatenate(train_labels, test_labels),
+                np.concatenate(train_input_flat, test_input_flat)]
+
+
+class COIL20Dataset(object):
+    def __init__(self):
+        self.cluster_count = 20
+
+    def loadDataset(self):
+        train_x = np.load('coil/coil_X.npy').astype(np.float32) / 256.0
+        train_y = np.load('coil/coil_y.npy')
+        train_x_flat = np.reshape(train_x, (-1, 128 * 128))
+        return [train_x, train_y, train_x_flat]
+
+
 def rescaleReshapeAndSaveImage(image_sample, out_filename):
-    
     image_sample = ((image_sample - np.amin(image_sample)) / (np.amax(image_sample) - np.amin(image_sample))) * 255;
     image_sample = np.rint(image_sample).astype(int)
     image_sample = np.clip(image_sample, a_min=0, a_max=255).astype('uint8')
     img = Image.fromarray(image_sample, 'L')
     img.save(out_filename)
 
-def getClusterMetricString(method_name, labels_true, labels_pred):
-    
-    return '%-30s     %8.3f     %8.3f' % (method_name, metrics.adjusted_rand_score(labels_true, labels_pred), metrics.adjusted_mutual_info_score(labels_true, labels_pred))
 
-def evaluateKMeans(data, labels, method_name):
-    
-    kmeans = KMeans(n_clusters=10, n_init=20)
+def getClusterMetricString(method_name, labels_true, labels_pred):
+    return '%-30s     %8.3f     %8.3f' % (method_name, metrics.adjusted_rand_score(labels_true, labels_pred),
+                                          metrics.adjusted_mutual_info_score(labels_true, labels_pred))
+
+
+def evaluateKMeans(data, labels, nclusters, method_name):
+    kmeans = KMeans(n_clusters=nclusters, n_init=30)
     kmeans.fit(data)
     return getClusterMetricString(method_name, labels, kmeans.labels_), kmeans.cluster_centers_
 
 
-def visualizeData(data,clust_assig=None, cluster_nrs=-1):
-
+def visualizeData(data, clust_assig=None, cluster_nrs=-1):
     # convert image data to float64 matrix. float64 is need for bh_sne
-    data = np.asarray(data).astype('float64')
+    data = np.asarray(data).astype('float32')
     data = data.reshape((data.shape[0], -1))
 
     # get vizualization data and split to x and y
@@ -114,13 +137,12 @@ def visualizeData(data,clust_assig=None, cluster_nrs=-1):
     vis_x = vis_data[:, 0]
     vis_y = vis_data[:, 1]
 
-
     # show data
-    if(clust_assig!=None): # if predicted assignements exist then color code can be used to show it
+    if (clust_assig != None):  # if predicted assignements exist then color code can be used to show it
         plt.scatter(vis_x, vis_y, c=clust_assig, cmap=plt.cm.get_cmap("jet", cluster_nrs))
         plt.colorbar(ticks=range(cluster_nrs))
         plt.clim(-0.5, 9.5)
     else:
-        plt.plot(vis_x,vis_y)
-        
+        plt.plot(vis_x, vis_y)
+
     plt.show()
