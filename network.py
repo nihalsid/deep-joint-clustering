@@ -24,7 +24,7 @@ logFormatter = logging.Formatter("[%(asctime)s]  %(message)s", datefmt='%m/%d %I
 rootLogger = logging.getLogger()
 rootLogger.setLevel(logging.DEBUG)
 
-fileHandler = logging.FileHandler(datetime.now().strftime('dcjc_%H_%M_%d_%m.log'))
+fileHandler = logging.FileHandler(datetime.now().strftime('logs/dcjc_%H_%M_%d_%m.log'))
 fileHandler.setFormatter(logFormatter)
 rootLogger.addHandler(fileHandler)
 
@@ -42,6 +42,7 @@ class DCJC(object):
         self.encode_layer, self.encode_size = netbuilder.getEncodeLayerAndSize()
         self.t_input, self.t_target = netbuilder.getInputAndTargetVars()
         self.input_type = netbuilder.getInputType()
+        self.batch_size = netbuilder.getBatchSize()
         rootLogger.info("Network: " + self.networkToStr())
         recon_prediction_expression = layers.get_output(self.network)
         encode_prediction_expression = layers.get_output(self.encode_layer, deterministic=True)
@@ -53,7 +54,7 @@ class DCJC(object):
         self.predictEncoding = theano.function([self.t_input], encode_prediction_expression)
 
     def pretrainWithData(self, dataset, pretrain_epochs):
-        batch_size = 60
+        batch_size = self.batch_size
         Z = np.zeros((dataset.input.shape[0], self.encode_size), dtype=np.float32);
         for epoch in range(pretrain_epochs):
             pretrain_error = 0
@@ -85,7 +86,7 @@ class DCJC(object):
     # load pretrained models, then either train with DEC loss jointly with reconstruction or alone
     def doClustering(self, dataset, complete_loss, cluster_train_epochs, repeats):
         P = T.matrix('P')
-        batch_size = 60
+        batch_size = self.batch_size
         with np.load('saved_params/%s/m_%s.npz' % (dataset.name, self.name)) as f:
             param_values = [f['arr_%d' % i] for i in range(len(f.files))]
         lasagne.layers.set_all_param_values(self.network, param_values)
@@ -198,6 +199,9 @@ class NetworkBuilder(object):
         self.network_type = self.network_description['network_type']
         self.batch_norm = bool(self.network_description["use_batch_norm"])
 
+    def getBatchSize(self):
+        return self.network_description["batch_size"]
+
     def getInputAndTargetVars(self):
         return self.t_input, self.t_target
 
@@ -230,15 +234,22 @@ class NetworkBuilder(object):
             elif (layer["type"] == "Conv2D"):
                 decode_layers.append({
                     'type': 'Deconv2D',
+                    'conv_mode': layer['conv_mode'],
                     'non_linearity': layer['non_linearity'],
                     'filter_size': layer['filter_size'],
                     'num_filters': encode_layers[i - 1]['output_shape'][0]
                 })
-            elif (layer["type"] == "Dense"):
+            elif (layer["type"] == "Dense" and not layer["is_encode"]):
                 decode_layers.append({
                     'type': 'Dense',
-                    'num_units': encode_layers[i - 1]['output_shape'][2]
+                    'num_units': encode_layers[i]['output_shape'][2],
+                    'non_linearity': encode_layers[i]['non_linearity']
                 })
+                if (encode_layers[i - 1]['type'] in ("Conv2D", "MaxPool2D", "MaxPool2D*")):
+                    decode_layers.append({
+                        "type": "Reshape",
+                        "output_shape": encode_layers[i - 1]['output_shape']
+                    })
         encode_layers.extend(decode_layers)
 
     def populateShapes(self, layers):
@@ -248,14 +259,21 @@ class NetworkBuilder(object):
                 layer['output_shape'] = [last_layer_dimensions[0], last_layer_dimensions[1] / layer['filter_size'][0],
                                          last_layer_dimensions[2] / layer['filter_size'][1]]
             elif (layer['type'] == 'Conv2D'):
+                multiplier = 1
+                if (layer['conv_mode'] == "same"):
+                    multiplier = 0
                 layer['output_shape'] = [layer['num_filters'],
-                                         last_layer_dimensions[1] - (layer['filter_size'][0] - 1) * 1,
-                                         last_layer_dimensions[2] - (layer['filter_size'][1] - 1) * 1]
+                                         last_layer_dimensions[1] - (layer['filter_size'][0] - 1) * multiplier,
+                                         last_layer_dimensions[2] - (layer['filter_size'][1] - 1) * multiplier]
             elif (layer['type'] == 'Dense'):
                 layer['output_shape'] = [1, 1, layer['num_units']]
             last_layer_dimensions = layer['output_shape']
 
     def populateMissingDescriptions(self, network_description):
+        for layer in network_description['layers']:
+            if 'conv_mode' not in layer:
+                layer['conv_mode'] = 'valid'
+            layer['is_encode'] = False
         network_description['layers'][-1]['is_encode'] = True
         self.populateShapes(network_description['layers'])
         self.populateDecoder(network_description['layers'])
@@ -267,10 +285,10 @@ class NetworkBuilder(object):
             else:
                 network_description['network_type'] = 'CAE'
         for layer in network_description['layers']:
-            if 'conv_mode' not in layer:
-                layer['conv_mode'] = 'valid'
             if 'is_encode' not in layer:
                 layer['is_encode'] = False
+            layer['is_output'] = False
+        network_description['layers'][-1]['is_output'] = True
         return network_description
 
     def processLayer(self, network, layer_definition):
@@ -282,9 +300,9 @@ class NetworkBuilder(object):
                 network = lasagne.layers.InputLayer(
                     shape=(None, layer_definition['output_shape'][2]), input_var=self.t_input)
         elif (layer_definition['type'] == 'Dense'):
-            lasagne.layers.DenseLayer(network, num_units=layer_definition['num_units'],
-                                      nonlinearity=self.getNonLinearity(layer_definition['non_linearity']),
-                                      name=self.getLayerName(layer_definition))
+            network = lasagne.layers.DenseLayer(network, num_units=layer_definition['num_units'],
+                                                nonlinearity=self.getNonLinearity(layer_definition['non_linearity']),
+                                                name=self.getLayerName(layer_definition))
         elif (layer_definition['type'] == 'Conv2D'):
             network = lasagne.layers.Conv2DLayer(network, num_filters=layer_definition['num_filters'],
                                                  filter_size=tuple(layer_definition["filter_size"]),
@@ -300,13 +318,18 @@ class NetworkBuilder(object):
         elif (layer_definition['type'] == 'Unpool2D'):
             network = Unpool2DLayer(network, tuple(layer_definition['filter_size']),
                                     name=self.getLayerName(layer_definition))
+        elif (layer_definition['type'] == 'Reshape'):
+            network = lasagne.layers.ReshapeLayer(network,
+                                                  shape=tuple([-1] + layer_definition["output_shape"]),
+                                                  name=self.getLayerName(layer_definition))
         elif (layer_definition['type'] == 'Deconv2D'):
             network = lasagne.layers.Deconv2DLayer(network, num_filters=layer_definition['num_filters'],
                                                    filter_size=tuple(layer_definition['filter_size']),
                                                    crop=layer_definition['conv_mode'],
                                                    nonlinearity=self.getNonLinearity(layer_definition['non_linearity']),
                                                    name=self.getLayerName(layer_definition))
-        if (self.batch_norm and layer_definition['type'] in ("Conv2D", "Deconv2D", "Dense")):
+        if (self.batch_norm and (not layer_definition["is_output"])and (not layer_definition["is_encode"]) and layer_definition['type'] in (
+                "Conv2D", "Deconv2D", "Dense")):
             network = batch_norm(network)
 
         if (layer_definition['is_encode']):
@@ -331,6 +354,8 @@ class NetworkBuilder(object):
         elif (layer_definition['type'] == 'Deconv2D'):
             return '{}[{}]'.format(layer_definition['num_filters'],
                                    'x'.join([str(fs) for fs in layer_definition['filter_size']]))
+        elif (layer_definition['type'] == 'Reshape'):
+            return "rsh"
 
     def getNonLinearity(self, non_linearity):
         return {

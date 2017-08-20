@@ -69,8 +69,8 @@ class MNISTDataset(object):
         train_input, train_input_flat, train_labels = self.prepareDatasetForAutoencoder(train_set[0], train_set[1])
         test_input, test_input_flat, test_labels = self.prepareDatasetForAutoencoder(test_set[0], test_set[1])
         f.close()
-        return [np.concatenate(train_input, test_input), np.concatenate(train_labels, test_labels),
-                np.concatenate(train_input_flat, test_input_flat)]
+        return [np.concatenate((train_input, test_input)), np.concatenate((train_labels, test_labels)),
+                np.concatenate((train_input_flat, test_input_flat))]
 
     def prepareDatasetForAutoencoder(self, inputs, targets):
         X = inputs

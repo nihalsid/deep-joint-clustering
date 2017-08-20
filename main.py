@@ -42,15 +42,19 @@ def testOnlyClusterImprovement(dataset_name, arch, epochs, repeats):
 
     rootLogger.info("Creating network")
     dcjc = DCJC(arch)
-    
+
     rootLogger.info("Starting cluster improvement")
-    dcjc.doClustering(dataset, True, epochs, repeats, plot[1])
+    dcjc.doClustering(dataset, True, epochs, repeats)
 
     
 if __name__ == '__main__':
+    mnist_models = []
+    coil_models = []
     with open("models/coil.json") as models_file:
         coil_models = json.load(models_file)
-        testOnlyClusterInitialization('COIL20', coil_models[0], 50)
+    with open("models/mnist.json") as models_file:
+        mnist_models = json.load(models_file)
+    testOnlyClusterInitialization('MNIST', mnist_models[1], 50)
     # testOnlyClusterInitialization(mnist_models.arch0, 500,plot=[False,True])
     # testOnlyClusterInitialization(mnist_models.arch7, 500,plot=[False,True])
     # testOnlyClusterInitialization(mnist_models.arch8, 500,plot=[False,True])

@@ -2,25 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="fa372489-4682-4e5e-b0d4-5d83e7a0d9a7" name="Default" comment="">
-      <change type="DELETED" beforePath="$PROJECT_DIR$/mnist/__init__.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/mnist/conv_ae.np" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/mnist/conv_ae.pkl" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models.py" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/--m_c-3-32_p_c-3-64_p_fc-32.npz" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/m_c-3-32_p_c-3-64_p_fc-10.npz" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/m_c-3-32_p_c-3-64_p_fc-128.npz" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/m_c-3-32_p_c-3-64_p_fc-32.npz" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/m_c-3-32_p_c-3-64_p_fc-64.npz" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/m_c-3-32_p_fc-32.npz" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/m_fc-500_fc-500_fc-2000_fc-10.npz" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/z_c-3-32_p_c-3-64_p_fc-10.npy" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/z_c-3-32_p_c-3-64_p_fc-128.npy" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/z_c-3-32_p_c-3-64_p_fc-32.npy" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/z_c-3-32_p_c-3-64_p_fc-64.npy" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/z_c-3-32_p_fc-32.npy" afterPath="" />
-      <change type="DELETED" beforePath="$PROJECT_DIR$/models/MNIST/z_fc-500_fc-500_fc-2000_fc-10.npy" afterPath="" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/main.py" afterPath="$PROJECT_DIR$/main.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/misc.py" afterPath="$PROJECT_DIR$/misc.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/models/coil.json" afterPath="$PROJECT_DIR$/models/coil.json" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/models/mnist.json" afterPath="$PROJECT_DIR$/models/mnist.json" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/network.py" afterPath="$PROJECT_DIR$/network.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -35,11 +21,19 @@
       <file leaf-file-name="network.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/network.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="5688">
-              <caret line="329" column="4" lean-forward="false" selection-start-line="329" selection-start-column="4" selection-end-line="329" selection-end-column="4" />
-              <folding>
-                <element signature="e#69#98#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="360">
+              <caret line="330" column="103" lean-forward="false" selection-start-line="330" selection-start-column="103" selection-end-line="330" selection-end-column="103" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="shape.py" pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/miniconda2/lib/python2.7/site-packages/lasagne/layers/shape.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="189">
+              <caret line="120" column="0" lean-forward="false" selection-start-line="120" selection-start-column="0" selection-end-line="120" selection-end-column="0" />
+              <folding />
             </state>
           </provider>
         </entry>
@@ -47,20 +41,18 @@
       <file leaf-file-name="main.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/main.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="882">
-              <caret line="52" column="8" lean-forward="false" selection-start-line="52" selection-start-column="8" selection-end-line="52" selection-end-column="8" />
-              <folding>
-                <element signature="e#66#78#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="116">
+              <caret line="46" column="52" lean-forward="false" selection-start-line="46" selection-start-column="52" selection-end-line="46" selection-end-column="52" />
+              <folding />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="coil.json" pinned="false" current-in-tab="true">
+      <file leaf-file-name="coil.json" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/models/coil.json">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="229">
-              <caret line="29" column="9" lean-forward="false" selection-start-line="29" selection-start-column="9" selection-end-line="29" selection-end-column="9" />
+            <state relative-caret-position="472">
+              <caret line="57" column="5" lean-forward="true" selection-start-line="1" selection-start-column="4" selection-end-line="57" selection-end-column="5" />
               <folding />
             </state>
           </provider>
@@ -69,8 +61,18 @@
       <file leaf-file-name="misc.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/misc.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="198">
-              <caret line="21" column="0" lean-forward="false" selection-start-line="21" selection-start-column="0" selection-end-line="21" selection-end-column="0" />
+            <state relative-caret-position="289">
+              <caret line="72" column="66" lean-forward="false" selection-start-line="72" selection-start-column="66" selection-end-line="72" selection-end-column="66" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="mnist.json" pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/models/mnist.json">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="144">
+              <caret line="62" column="19" lean-forward="false" selection-start-line="62" selection-start-column="19" selection-end-line="62" selection-end-column="19" />
               <folding />
             </state>
           </provider>
@@ -93,11 +95,12 @@
       <find>setnetworkt</find>
       <find>'</find>
       <find>print</find>
-      <find>prin</find>
       <find>target_var</find>
       <find>train_input</find>
       <find>flat</find>
       <find>train_labels</find>
+      <find>use_tei</find>
+      <find>prin</find>
     </findStrings>
     <replaceStrings>
       <replace>output_shape</replace>
@@ -120,9 +123,10 @@
         <option value="$PROJECT_DIR$/models/mnist_models.json" />
         <option value="$PROJECT_DIR$/models/coil_models.json" />
         <option value="$PROJECT_DIR$/misc.py" />
+        <option value="$PROJECT_DIR$/models/coil.json" />
         <option value="$PROJECT_DIR$/main.py" />
         <option value="$PROJECT_DIR$/network.py" />
-        <option value="$PROJECT_DIR$/models/coil.json" />
+        <option value="$PROJECT_DIR$/models/mnist.json" />
       </list>
     </option>
   </component>
@@ -172,7 +176,7 @@
   </component>
   <component name="PropertiesComponent">
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+    <property name="settings.editor.selected.configurable" value="preferences.externalTools" />
   </component>
   <component name="RunDashboard">
     <option name="ruleStates">
@@ -225,12 +229,13 @@
   </component>
   <component name="ToolWindowManager">
     <frame x="292" y="34" width="1400" height="1000" extended-state="0" />
+    <editor active="true" />
     <layout>
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
-      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32997763" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
-      <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32997763" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32997763" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
@@ -259,7 +264,7 @@
         <state relative-caret-position="5688">
           <caret line="329" column="4" lean-forward="false" selection-start-line="329" selection-start-column="4" selection-end-line="329" selection-end-column="4" />
           <folding>
-            <element signature="e#69#98#0" expanded="true" />
+            <element signature="e#69#98#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -269,7 +274,7 @@
         <state relative-caret-position="882">
           <caret line="52" column="8" lean-forward="false" selection-start-line="52" selection-start-column="8" selection-end-line="52" selection-end-column="8" />
           <folding>
-            <element signature="e#66#78#0" expanded="true" />
+            <element signature="e#66#78#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -295,7 +300,7 @@
         <state relative-caret-position="5688">
           <caret line="329" column="4" lean-forward="false" selection-start-line="329" selection-start-column="4" selection-end-line="329" selection-end-column="4" />
           <folding>
-            <element signature="e#69#98#0" expanded="true" />
+            <element signature="e#69#98#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -305,7 +310,7 @@
         <state relative-caret-position="882">
           <caret line="52" column="8" lean-forward="false" selection-start-line="52" selection-start-column="8" selection-end-line="52" selection-end-column="8" />
           <folding>
-            <element signature="e#66#78#0" expanded="true" />
+            <element signature="e#66#78#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -331,7 +336,7 @@
         <state relative-caret-position="630">
           <caret line="48" column="12" lean-forward="false" selection-start-line="48" selection-start-column="12" selection-end-line="48" selection-end-column="12" />
           <folding>
-            <element signature="e#69#98#0" expanded="true" />
+            <element signature="e#69#98#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -349,7 +354,7 @@
         <state relative-caret-position="864">
           <caret line="51" column="36" lean-forward="false" selection-start-line="51" selection-start-column="36" selection-end-line="51" selection-end-column="36" />
           <folding>
-            <element signature="e#66#78#0" expanded="true" />
+            <element signature="e#66#78#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -358,33 +363,8 @@
     <entry file="file://$PROJECT_DIR$/models.py" />
     <entry file="file://$PROJECT_DIR$/networkbuilder.py" />
     <entry file="file://$PROJECT_DIR$/models/mnist_models.py" />
-    <entry file="file://$PROJECT_DIR$/models/mnist.json">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="90">
-          <caret line="5" column="25" lean-forward="true" selection-start-line="5" selection-start-column="25" selection-end-line="5" selection-end-column="25" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/models/coil_models.py" />
     <entry file="file://$PROJECT_DIR$/process_coil.py" />
-    <entry file="file://$PROJECT_DIR$/misc.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="198">
-          <caret line="21" column="0" lean-forward="false" selection-start-line="21" selection-start-column="0" selection-end-line="21" selection-end-column="0" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/main.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="882">
-          <caret line="52" column="8" lean-forward="false" selection-start-line="52" selection-start-column="8" selection-end-line="52" selection-end-column="8" />
-          <folding>
-            <element signature="e#66#78#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$USER_HOME$/miniconda2/lib/python2.7/site-packages/lasagne/layers/base.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="189">
@@ -406,20 +386,50 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/network.py">
+    <entry file="file://$USER_HOME$/miniconda2/lib/python2.7/site-packages/lasagne/layers/shape.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="5688">
-          <caret line="329" column="4" lean-forward="false" selection-start-line="329" selection-start-column="4" selection-end-line="329" selection-end-column="4" />
-          <folding>
-            <element signature="e#69#98#0" expanded="true" />
-          </folding>
+        <state relative-caret-position="189">
+          <caret line="120" column="0" lean-forward="false" selection-start-line="120" selection-start-column="0" selection-end-line="120" selection-end-column="0" />
+          <folding />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/models/coil.json">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="229">
-          <caret line="29" column="9" lean-forward="false" selection-start-line="29" selection-start-column="9" selection-end-line="29" selection-end-column="9" />
+        <state relative-caret-position="472">
+          <caret line="57" column="5" lean-forward="true" selection-start-line="1" selection-start-column="4" selection-end-line="57" selection-end-column="5" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/main.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="116">
+          <caret line="46" column="52" lean-forward="false" selection-start-line="46" selection-start-column="52" selection-end-line="46" selection-end-column="52" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/network.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="360">
+          <caret line="330" column="103" lean-forward="false" selection-start-line="330" selection-start-column="103" selection-end-line="330" selection-end-column="103" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/misc.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="289">
+          <caret line="72" column="66" lean-forward="false" selection-start-line="72" selection-start-column="66" selection-end-line="72" selection-end-column="66" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/models/mnist.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="144">
+          <caret line="62" column="19" lean-forward="false" selection-start-line="62" selection-start-column="19" selection-end-line="62" selection-end-column="19" />
           <folding />
         </state>
       </provider>
