@@ -48,7 +48,8 @@ class DCJC(object):
         encode_prediction_expression = layers.get_output(self.encode_layer, deterministic=True)
         loss = self.getReconstructionLossExpression(recon_prediction_expression, self.t_target)
         params = lasagne.layers.get_all_params(self.network, trainable=True)
-        updates = lasagne.updates.adam(loss, params)
+        updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=0.01)
+        #updates = lasagne.updates.adam(loss, params)
         self.trainAutoencoder = theano.function([self.t_input, self.t_target], loss, updates=updates)
         self.predictReconstruction = theano.function([self.t_input], recon_prediction_expression)
         self.predictEncoding = theano.function([self.t_input], encode_prediction_expression)
@@ -198,6 +199,7 @@ class NetworkBuilder(object):
             self.input_type = "FLAT"
         self.network_type = self.network_description['network_type']
         self.batch_norm = bool(self.network_description["use_batch_norm"])
+        self.layer_list = []
 
     def getBatchSize(self):
         return self.network_description["batch_size"]
@@ -255,7 +257,7 @@ class NetworkBuilder(object):
     def populateShapes(self, layers):
         last_layer_dimensions = layers[0]['output_shape']
         for layer in layers[1:]:
-            if (layer['type'] == 'MaxPool2D'):
+            if (layer['type'] == 'MaxPool2D' or layer['type'] == 'MaxPool2D*'):
                 layer['output_shape'] = [last_layer_dimensions[0], last_layer_dimensions[1] / layer['filter_size'][0],
                                          last_layer_dimensions[2] / layer['filter_size'][1]]
             elif (layer['type'] == 'Conv2D'):
@@ -309,11 +311,11 @@ class NetworkBuilder(object):
                                                  pad=layer_definition['conv_mode'],
                                                  nonlinearity=self.getNonLinearity(layer_definition['non_linearity']),
                                                  name=self.getLayerName(layer_definition))
-        elif (layer_definition['type'] == 'MaxPool2D'):
+        elif (layer_definition['type'] == 'MaxPool2D' or layer_definition['type'] == 'MaxPool2D*'):
             network = lasagne.layers.MaxPool2DLayer(network, pool_size=tuple(layer_definition["filter_size"]),
                                                     name=self.getLayerName(layer_definition))
         elif (layer_definition['type'] == 'InverseMaxPool2D'):
-            network = lasagne.layers.InverseLayer(network, get_all_layers(network)[layer_definition['layer_index']],
+            network = lasagne.layers.InverseLayer(network, self.layer_list[layer_definition['layer_index']],
                                                   name=self.getLayerName(layer_definition))
         elif (layer_definition['type'] == 'Unpool2D'):
             network = Unpool2DLayer(network, tuple(layer_definition['filter_size']),
@@ -328,8 +330,10 @@ class NetworkBuilder(object):
                                                    crop=layer_definition['conv_mode'],
                                                    nonlinearity=self.getNonLinearity(layer_definition['non_linearity']),
                                                    name=self.getLayerName(layer_definition))
-        if (self.batch_norm and (not layer_definition["is_output"])and (not layer_definition["is_encode"]) and layer_definition['type'] in (
-                "Conv2D", "Deconv2D", "Dense")):
+
+        self.layer_list.append(network)
+
+        if (self.batch_norm and (not layer_definition["is_output"]) and  layer_definition['type'] in ("Conv2D", "Deconv2D")):
             network = batch_norm(network)
 
         if (layer_definition['is_encode']):
@@ -344,7 +348,7 @@ class NetworkBuilder(object):
         elif (layer_definition['type'] == 'Conv2D'):
             return '{}[{}]'.format(layer_definition['num_filters'],
                                    'x'.join([str(fs) for fs in layer_definition['filter_size']]))
-        elif (layer_definition['type'] == 'MaxPool2D'):
+        elif (layer_definition['type'] == 'MaxPool2D' or layer_definition['type'] == 'MaxPool2D*'):
             return 'max[{}]'.format('x'.join([str(fs) for fs in layer_definition['filter_size']]))
         elif (layer_definition['type'] == 'InverseMaxPool2D'):
             return 'ups*[{}]'.format('x'.join([str(fs) for fs in layer_definition['filter_size']]))

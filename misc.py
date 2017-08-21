@@ -117,12 +117,12 @@ def rescaleReshapeAndSaveImage(image_sample, out_filename):
 
 
 def getClusterMetricString(method_name, labels_true, labels_pred):
-    return '%-30s     %8.3f     %8.3f' % (method_name, metrics.adjusted_rand_score(labels_true, labels_pred),
-                                          metrics.adjusted_mutual_info_score(labels_true, labels_pred))
+    return '%-50s     %8.3f     %8.3f' % (method_name, metrics.adjusted_rand_score(labels_true, labels_pred),
+                                          metrics.normalized_mutual_info_score(labels_true, labels_pred))
 
 
 def evaluateKMeans(data, labels, nclusters, method_name):
-    kmeans = KMeans(n_clusters=nclusters, n_init=30)
+    kmeans = KMeans(n_clusters=nclusters, n_init=20)
     kmeans.fit(data)
     return getClusterMetricString(method_name, labels, kmeans.labels_), kmeans.cluster_centers_
 

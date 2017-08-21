@@ -22,16 +22,16 @@ def testOnlyClusterInitialization(dataset_name, arch, epochs):
     
 def testKMeans(dataset_name, methods):
     rootLogger.info('Initial Cluster Quality Comparison')
-    rootLogger.info(60 * '_')
-    rootLogger.info('%-30s     %8s     %8s' % ('method', 'ARI', 'AMI'))
-    rootLogger.info(60 * '_') 
+    rootLogger.info(80 * '_')
+    rootLogger.info('%-50s     %8s     %8s' % ('method', 'ARI', 'NMI'))
+    rootLogger.info(80 * '_')
     dataset = DatasetHelper(dataset_name)
     dataset.loadDataset()
     #rootLogger.info(evaluateKMeans(dataset.train_input_flat, dataset.train_labels, dataset.getClusterCount(), 'image')[0])
     for m in methods:
         Z = numpy.load('saved_params/' + dataset.name + '/z_' + m['name'] + '.npy')
-        rootLogger.info(evaluateKMeans(Z, dataset.train_labels, dataset.getClusterCount(), m['name'])[0])
-    rootLogger.info(60 * '_') 
+        rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), m['name'])[0])
+    rootLogger.info(80 * '_')
     
 def testOnlyClusterImprovement(dataset_name, arch, epochs, repeats):
     
@@ -58,6 +58,6 @@ if __name__ == '__main__':
     # testOnlyClusterInitialization(mnist_models.arch0, 500,plot=[False,True])
     # testOnlyClusterInitialization(mnist_models.arch7, 500,plot=[False,True])
     # testOnlyClusterInitialization(mnist_models.arch8, 500,plot=[False,True])
-    # testOnlyClusterInitialization(mnist_models.arch9, 500,plot=[False,True])    
-    # testKMeans([mnist_models.arch0, mnist_models.arch7, mnist_models.arch8, mnist_models.arch9])
+    # testOnlyClusterInitialization(mnist_models.arch9, 500,plot=[False,True])
+    # testKMeans("COIL20",[coil_models[0]])
     # testOnlyClusterImprovement('COIL20',coil_models.arch7, 1, 20, plot=[False,False])
