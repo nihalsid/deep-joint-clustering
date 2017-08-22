@@ -174,6 +174,16 @@ class DCJC(object):
         loss = loss.mean()
         return loss
 
+    def getKMeansLoss(self, latent_space_expression, t_soft_assignments, t_cluster_centers):
+        z = latent_space_expression.reshape((self.num_samples, 1, self.latent_space_dim))
+        z = T.tile(z, (1, self.num_clusters, 1))
+        u = t_cluster_centers.reshape((1, self.num_clusters, self.latent_space_dim))
+        u = T.tile(u, (self.num_samples, 1, 1))
+        distances = (z - u).norm(2, axis=2).reshape((self.num_samples, self.num_clusters))
+        weighted_distances = distances * t_soft_assignments
+        loss = weighted_distances.sum(axis=1).mean()
+        return loss
+
     def networkToStr(self):
         layers = lasagne.layers.get_all_layers(self.network)
         result = ''

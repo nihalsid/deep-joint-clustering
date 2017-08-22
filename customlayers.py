@@ -60,4 +60,4 @@ class ClusteringLayer(layers.Layer):
         qij_numerator = 1 / qij_numerator
         normalizer_q = qij_numerator.sum(axis=1).reshape((self.num_samples, 1))
         
-        return qij_numerator / normalizer_q;
+        return qij_numerator / normalizer_q

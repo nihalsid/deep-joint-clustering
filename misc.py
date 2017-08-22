@@ -7,15 +7,14 @@ Created on Jul 11, 2017
 import cPickle
 import gzip
 
+import numpy as np
 from PIL import Image
 from matplotlib import pyplot as plt
 from numpy import float32
 from sklearn import metrics
 from sklearn.cluster.k_means_ import KMeans
 from tsne import bh_sne
-
-import numpy as np
-
+from external.purity import purity_score
 
 class DatasetHelper(object):
     def __init__(self, name):
@@ -117,7 +116,7 @@ def rescaleReshapeAndSaveImage(image_sample, out_filename):
 
 
 def getClusterMetricString(method_name, labels_true, labels_pred):
-    return '%-50s     %8.3f     %8.3f' % (method_name, metrics.adjusted_rand_score(labels_true, labels_pred),
+    return '%-50s     %8.3f     %8.3f' % (method_name, purity_score(labels_true, labels_pred),
                                           metrics.normalized_mutual_info_score(labels_true, labels_pred))
 
 

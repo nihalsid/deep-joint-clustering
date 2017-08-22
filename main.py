@@ -23,7 +23,7 @@ def testOnlyClusterInitialization(dataset_name, arch, epochs):
 def testKMeans(dataset_name, methods):
     rootLogger.info('Initial Cluster Quality Comparison')
     rootLogger.info(80 * '_')
-    rootLogger.info('%-50s     %8s     %8s' % ('method', 'ARI', 'NMI'))
+    rootLogger.info('%-50s     %8s     %8s' % ('method', 'ACC', 'NMI'))
     rootLogger.info(80 * '_')
     dataset = DatasetHelper(dataset_name)
     dataset.loadDataset()
