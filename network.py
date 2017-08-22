@@ -47,8 +47,11 @@ class DCJC(object):
         recon_prediction_expression = layers.get_output(self.network)
         encode_prediction_expression = layers.get_output(self.encode_layer, deterministic=True)
         loss = self.getReconstructionLossExpression(recon_prediction_expression, self.t_target)
+        weightsl2 = lasagne.regularization.regularize_network_params(self.network, lasagne.regularization.l2)
+        loss += (5e-5 * weightsl2)
         params = lasagne.layers.get_all_params(self.network, trainable=True)
-        updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=0.01)
+        self.learning_rate = theano.shared(lasagne.utils.floatX(0.01))
+        updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=self.learning_rate)
         #updates = lasagne.updates.adam(loss, params)
         self.trainAutoencoder = theano.function([self.t_input, self.t_target], loss, updates=updates)
         self.predictReconstruction = theano.function([self.t_input], recon_prediction_expression)
@@ -64,6 +67,7 @@ class DCJC(object):
                 inputs, targets = batch
                 pretrain_error += self.trainAutoencoder(inputs, targets)
                 pretrain_total_batches += 1
+            self.learning_rate.set_value(self.learning_rate.get_value() * lasagne.utils.floatX(0.9999))
             if (epoch + 1) % 2 == 0:
                 for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
                     Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
@@ -287,6 +291,8 @@ class NetworkBuilder(object):
                 layer['conv_mode'] = 'valid'
             layer['is_encode'] = False
         network_description['layers'][-1]['is_encode'] = True
+        if 'output_non_linearity' not in network_description:
+            network_description['output_non_linearity'] = network_description['layers'][1]['non_linearity']
         self.populateShapes(network_description['layers'])
         self.populateDecoder(network_description['layers'])
         if 'use_batch_norm' not in network_description:
@@ -301,6 +307,7 @@ class NetworkBuilder(object):
                 layer['is_encode'] = False
             layer['is_output'] = False
         network_description['layers'][-1]['is_output'] = True
+        network_description['layers'][-1]['non_linearity'] = network_description['output_non_linearity']
         return network_description
 
     def processLayer(self, network, layer_definition):
@@ -343,11 +350,13 @@ class NetworkBuilder(object):
 
         self.layer_list.append(network)
 
-        if (self.batch_norm and (not layer_definition["is_output"]) and (not layer_definition["is_encode"]) and  layer_definition['type'] in ("Conv2D", "Deconv2D")):
+        if (self.batch_norm and (not layer_definition["is_output"])  and  layer_definition['type'] in ("Conv2D", "Deconv2D")):
             network = batch_norm(network)
 
         if (layer_definition['is_encode']):
             self.encode_layer = lasagne.layers.flatten(network, name='fl')
+            if (self.batch_norm):
+                self.encode_layer = batch_norm(self.encode_layer)
             self.encode_size = layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * \
                                layer_definition['output_shape'][2]
         return network
