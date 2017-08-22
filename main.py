@@ -27,7 +27,7 @@ def testKMeans(dataset_name, methods):
     rootLogger.info(80 * '_')
     dataset = DatasetHelper(dataset_name)
     dataset.loadDataset()
-    #rootLogger.info(evaluateKMeans(dataset.train_input_flat, dataset.train_labels, dataset.getClusterCount(), 'image')[0])
+    # rootLogger.info(evaluateKMeans(dataset.input_flat, dataset.labels, dataset.getClusterCount(), 'image')[0])
     for m in methods:
         Z = numpy.load('saved_params/' + dataset.name + '/z_' + m['name'] + '.npy')
         rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), m['name'])[0])
@@ -54,7 +54,8 @@ if __name__ == '__main__':
         coil_models = json.load(models_file)
     with open("models/mnist.json") as models_file:
         mnist_models = json.load(models_file)
-    testOnlyClusterInitialization('MNIST', mnist_models[1], 50)
+    testOnlyClusterInitialization('MNIST', mnist_models[1], 10)
+    testKMeans("MNIST", [mnist_models[1]])
     # testOnlyClusterInitialization(mnist_models.arch0, 500,plot=[False,True])
     # testOnlyClusterInitialization(mnist_models.arch7, 500,plot=[False,True])
     # testOnlyClusterInitialization(mnist_models.arch8, 500,plot=[False,True])

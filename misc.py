@@ -14,7 +14,8 @@ from numpy import float32
 from sklearn import metrics
 from sklearn.cluster.k_means_ import KMeans
 from tsne import bh_sne
-from external.purity import purity_score
+from sklearn.utils.linear_assignment_ import linear_assignment
+
 
 class DatasetHelper(object):
     def __init__(self, name):
@@ -115,9 +116,20 @@ def rescaleReshapeAndSaveImage(image_sample, out_filename):
     img.save(out_filename)
 
 
+def cluster_acc(y_true, y_pred):
+    D = int(max(y_pred.max(), y_true.max()) + 1)
+    w = np.zeros((D, D), dtype=np.int32)
+    for i in range(y_pred.size):
+        idx1 = int(y_pred[i])
+        idx2 = int(y_true[i])
+        w[idx1, idx2] += 1
+    ind = linear_assignment(w.max() - w)
+    return sum([w[i, j] for i, j in ind]) * 1.0 / y_pred.size
+
 def getClusterMetricString(method_name, labels_true, labels_pred):
-    return '%-50s     %8.3f     %8.3f' % (method_name, purity_score(labels_true, labels_pred),
-                                          metrics.normalized_mutual_info_score(labels_true, labels_pred))
+    acc = cluster_acc(labels_true, labels_pred)
+    nmi = metrics.normalized_mutual_info_score(labels_true, labels_pred)
+    return '%-50s     %8.3f     %8.3f' % (method_name, acc, nmi)
 
 
 def evaluateKMeans(data, labels, nclusters, method_name):
@@ -143,5 +155,4 @@ def visualizeData(data, clust_assig=None, cluster_nrs=-1):
         plt.clim(-0.5, 9.5)
     else:
         plt.plot(vis_x, vis_y)
-
     plt.show()

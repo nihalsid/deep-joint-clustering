@@ -64,7 +64,7 @@ class DCJC(object):
                 inputs, targets = batch
                 pretrain_error += self.trainAutoencoder(inputs, targets)
                 pretrain_total_batches += 1
-            if (epoch + 1) % 5 == 0:
+            if (epoch + 1) % 2 == 0:
                 for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
                     Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
                     '''
@@ -343,7 +343,7 @@ class NetworkBuilder(object):
 
         self.layer_list.append(network)
 
-        if (self.batch_norm and (not layer_definition["is_output"]) and  layer_definition['type'] in ("Conv2D", "Deconv2D")):
+        if (self.batch_norm and (not layer_definition["is_output"]) and (not layer_definition["is_encode"]) and  layer_definition['type'] in ("Conv2D", "Deconv2D")):
             network = batch_norm(network)
 
         if (layer_definition['is_encode']):
