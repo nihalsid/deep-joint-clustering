@@ -9,11 +9,14 @@ import gzip
 
 import numpy as np
 from PIL import Image
+import matplotlib
+matplotlib.use('Agg')
+
 from matplotlib import pyplot as plt
 from numpy import float32
 from sklearn import metrics
 from sklearn.cluster.k_means_ import KMeans
-from tsne import bh_sne
+from sklearn import manifold
 from sklearn.utils.linear_assignment_ import linear_assignment
 
 
@@ -138,21 +141,11 @@ def evaluateKMeans(data, labels, nclusters, method_name):
     return getClusterMetricString(method_name, labels, kmeans.labels_), kmeans.cluster_centers_
 
 
-def visualizeData(data, clust_assig=None, cluster_nrs=-1):
-    # convert image data to float64 matrix. float64 is need for bh_sne
-    data = np.asarray(data).astype('float32')
-    data = data.reshape((data.shape[0], -1))
-
-    # get vizualization data and split to x and y
-    vis_data = bh_sne(data)
-    vis_x = vis_data[:, 0]
-    vis_y = vis_data[:, 1]
-
-    # show data
-    if (clust_assig != None):  # if predicted assignements exist then color code can be used to show it
-        plt.scatter(vis_x, vis_y, c=clust_assig, cmap=plt.cm.get_cmap("jet", cluster_nrs))
-        plt.colorbar(ticks=range(cluster_nrs))
-        plt.clim(-0.5, 9.5)
-    else:
-        plt.plot(vis_x, vis_y)
-    plt.show()
+def visualizeData(Z, labels, num_clusters, title):
+    labels = labels.astype(int)
+    tsne = manifold.TSNE(n_components=2, init='pca', random_state=0)
+    Z_tsne = tsne.fit_transform(Z)
+    fig = plt.figure()
+    plt.scatter(Z_tsne[:,0], Z_tsne[:,1], s=2, c=labels, cmap=plt.cm.get_cmap("jet", num_clusters))
+    plt.colorbar(ticks=range(num_clusters))
+    fig.savefig(title, dpi=fig.dpi)
