@@ -54,11 +54,11 @@ def visualizeLatentSpace(dataset_name, arch):
     dataset = DatasetHelper(dataset_name)
     dataset.loadDataset()
     rootLogger.info("Done loading dataset")
-    visualizeData(dataset.input_flat, dataset.labels, dataset.getClusterCount(), "plots/%s/raw.png"%dataset.name)
+    visualizeData(dataset.input_flat[0:5000], dataset.labels[0:5000], dataset.getClusterCount(), "plots/%s/raw.png"%dataset.name)
     Z = numpy.load('saved_params/' + dataset.name + '/z_' + arch['name'] + '.npy')
-    visualizeData(Z, dataset.labels, dataset.getClusterCount(), "plots/%s/autoencoder.png"%dataset.name)
+    visualizeData(Z[0:5000], dataset.labels[0:5000], dataset.getClusterCount(), "plots/%s/autoencoder.png"%dataset.name)
     Z = numpy.load('saved_params/' + dataset.name + '/pc_z_' + arch['name'] + '.npy')
-    visualizeData(Z, dataset.labels, dataset.getClusterCount(), "plots/%s/clustered.png"%dataset.name)
+    visualizeData(Z[0:5000], dataset.labels[0:5000], dataset.getClusterCount(), "plots/%s/clustered.png"%dataset.name)
 
 if __name__ == '__main__':
     mnist_models = []
@@ -67,9 +67,10 @@ if __name__ == '__main__':
         coil_models = json.load(models_file)
     with open("models/mnist.json") as models_file:
         mnist_models = json.load(models_file)
-    visualizeLatentSpace('COIL20', coil_models[0])
-    # testOnlyClusterInitialization('COIL20', coil_models[0], 10)
-    # testOnlyClusterImprovement('COIL20', coil_models[0], 20, 'KLD')
+    #visualizeLatentSpace('COIL20', coil_models[0])
+    visualizeLatentSpace('MNIST', mnist_models[1])
+    # testOnlyClusterInitialization('MNIST', mnist_models[1], 500)
+    # testOnlyClusterImprovement('MNIST', mnist_models[1], 100, 'KLD')
     # testOnlyClusterInitialization(mnist_models.arch0, 500,plot=[False,True])
     # testOnlyClusterInitialization(mnist_models.arch7, 500,plot=[False,True])
     # testOnlyClusterInitialization(mnist_models.arch8, 500,plot=[False,True])

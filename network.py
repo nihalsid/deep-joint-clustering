@@ -72,7 +72,7 @@ class DCJC(object):
                 pretrain_error += self.trainAutoencoder(inputs, targets)
                 pretrain_total_batches += 1
             self.learning_rate.set_value(self.learning_rate.get_value() * lasagne.utils.floatX(0.9999))
-            if (epoch + 1) % 1 == 0:
+            if (epoch + 1) % 20 == 0:
                 for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
                     Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
                     '''
@@ -196,8 +196,9 @@ class DCJC(object):
                 Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
 
             # np.save('saved_params/%s/z_%s.npy' % (dataset.name, 'Test'), Z)
-            rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), "%d [%.4f]" % (
-                epoch, error / total_batches))[0])
+            if (epoch+1)%10 == 0:
+                rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), "%d [%.4f]" % (
+                    epoch, error / total_batches))[0])
 
         for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
             Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
