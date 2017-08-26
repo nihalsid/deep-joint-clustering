@@ -72,6 +72,8 @@ def testKMeans(dataset_name, archs):
         rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), arch['name'])[0])
         Z = numpy.load('saved_params/' + dataset.name + '/pc_z_' + arch['name'] + '.npy')
         rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), arch['name'])[0])
+        Z = numpy.load('saved_params/' + dataset.name + '/pc_km_z_' + arch['name'] + '.npy')
+        rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), arch['name'])[0])
     rootLogger.info(80 * '_')
 
 
@@ -93,9 +95,12 @@ def visualizeLatentSpace(dataset_name, arch):
     # Latent space - autoencoder
     Z = numpy.load('saved_params/' + dataset.name + '/z_' + arch['name'] + '.npy')
     visualizeData(Z[0:max_points], dataset.labels[0:max_points], dataset.getClusterCount(), "plots/%s/autoencoder.png" % dataset.name)
-    # Latent space - clustering network
+    # Latent space - kl div clustering network
     Z = numpy.load('saved_params/' + dataset.name + '/pc_z_' + arch['name'] + '.npy')
-    visualizeData(Z[0:max_points], dataset.labels[0:max_points], dataset.getClusterCount(), "plots/%s/clustered.png" % dataset.name)
+    visualizeData(Z[0:max_points], dataset.labels[0:max_points], dataset.getClusterCount(), "plots/%s/clustered_kld.png" % dataset.name)
+    # Latent space - kmeans clustering network
+    Z = numpy.load('saved_params/' + dataset.name + '/pc_km_z_' + arch['name'] + '.npy')
+    visualizeData(Z[0:max_points], dataset.labels[0:max_points], dataset.getClusterCount(), "plots/%s/clustered_km.png" % dataset.name)
 
 
 if __name__ == '__main__':
@@ -152,7 +157,7 @@ if __name__ == '__main__':
     if args.pretrain:
         testOnlyClusterInitialization(dataset_name, archs[arch_index], args.pretrain)
     if args.cluster:
-        testOnlyClusterImprovement(dataset_name, archs[arch_index], args.pretrain, "KLD")
+        testOnlyClusterImprovement(dataset_name, archs[arch_index], args.cluster, "KLD")
     if args.metrics:
         testKMeans(dataset_name, [archs[arch_index]])
     if args.visualize:

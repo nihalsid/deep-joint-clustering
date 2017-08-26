@@ -233,13 +233,15 @@ class DCJC(object):
             lasagne.layers.set_all_param_values(self.network, param_values, trainable=True)
         # reconstruction loss is just rms loss between input and reconstructed input
         reconstruction_loss = self.getReconstructionLossExpression(layers.get_output(self.network), self.t_target)
+        # extent the network to do soft cluster assignments
+        clustering_network = ClusteringLayer(self.encode_layer, dataset.getClusterCount(), cluster_centers, batch_size, self.encode_size)
+        soft_assignments = layers.get_output(clustering_network)
         # k-means loss is the sum of distances from the cluster centers weighted by the soft assignments to the clusters
-        t_cluster_centers = theano.shared(cluster_centers)
-        kmeansLoss = self.getKMeansLoss(layers.get_output(self.encode_layer), t_cluster_centers, dataset.getClusterCount(), self.encode_size, batch_size)
+        kmeansLoss = self.getKMeansLoss(layers.get_output(self.encode_layer), soft_assignments, clustering_network.W, dataset.getClusterCount(), self.encode_size, batch_size)
         params = lasagne.layers.get_all_params(self.network, trainable=True)
         # total loss = reconstruction loss + lambda * kmeans loss
         weight_reconstruction = 1
-        weight_kmeans = 0.05
+        weight_kmeans = 0.1
         total_loss = weight_kmeans * kmeansLoss + weight_reconstruction * reconstruction_loss
         updates = lasagne.updates.nesterov_momentum(total_loss, params, learning_rate=0.01)
         trainKMeansWithAE = theano.function([self.t_input, self.t_target], total_loss, updates=updates)
@@ -257,22 +259,27 @@ class DCJC(object):
                     Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
                 quality_desc, cluster_centers = evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), "%d/%d [%.4f]" % (epoch + 1, epochs, error / total_batches))
                 rootLogger.info(quality_desc)
-                t_cluster_centers.set_value(cluster_centers)
             else:
                 # Just print the training loss
                 rootLogger.info("%-30s     %8s     %8s" % ("%d/%d [%.4f]" % (epoch + 1, epochs, error / total_batches), "", ""))
 
-    def getKMeansLoss(self, latent_space_expression, t_cluster_centers, num_clusters, latent_space_dim, num_samples, soft_loss=True):
+        # Save the inputs in latent space and the network parameters
+        for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
+            Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
+        np.save('saved_params/%s/pc_km_z_%s.npy' % (dataset.name, self.name), Z)
+        np.savez('saved_params/%s/pc_km_m_%s.npz' % (dataset.name, self.name),
+                 *lasagne.layers.get_all_param_values(self.network, trainable=True))
+
+
+    def getKMeansLoss(self, latent_space_expression, soft_assignments, t_cluster_centers, num_clusters, latent_space_dim, num_samples, soft_loss=False):
         # Kmeans loss = weighted sum of latent space representation of inputs from the cluster centers
-        t_soft_assignments = getSoftAssignments(latent_space_expression, t_cluster_centers, num_clusters,
-                                                latent_space_dim, num_samples)
         z = latent_space_expression.reshape((num_samples, 1, latent_space_dim))
         z = T.tile(z, (1, num_clusters, 1))
         u = t_cluster_centers.reshape((1, num_clusters, latent_space_dim))
         u = T.tile(u, (num_samples, 1, 1))
         distances = (z - u).norm(2, axis=2).reshape((num_samples, num_clusters))
         if soft_loss:
-            weighted_distances = distances * t_soft_assignments
+            weighted_distances = distances * soft_assignments
             loss = weighted_distances.sum(axis=1).mean()
         else:
             loss = distances.min(axis=1).mean()
