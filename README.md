@@ -40,6 +40,7 @@ Autoencoder Builder
 -----------------------------
 We've implemented a **NetworkBuilder** class  that can be used to quickly describe the architecture of an autoencoder through a **json** file. 
 The json specification of the architecture is a dictionary with the following fields
+
 | Field | Description 
 ---------|------------
 name| Name identifier given to the architecture, used for file naming while saving parameters 
