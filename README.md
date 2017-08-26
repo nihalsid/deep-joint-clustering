@@ -43,7 +43,8 @@ We've implemented the **NetworkBuilder** class  that can be used to quickly spec
 Experiments and Results
 -----------------------------------
 We trained and tested the network on two datasets - MNIST and COIL20 
-Dataset| Image size | Number of samples | Number of clusters 
+
+|Dataset| Image size | Number of samples | Number of clusters 
 -------- | ---|---|---
 MNIST| 28x28x1|60000|10
 COIL20| 128x128x1|1440|20
@@ -73,13 +74,13 @@ DBC| 0.964|0.917
 
 ##### **Latent space visualizations**
 ###### Pixel space
-![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/MNIST/raw.png)
+![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/raw/ff9aca9ae9a1f51c37227f1f2ac47b1199db9468/plots/MNIST/raw.png)
 ###### Autoencoder
-![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/MNIST/autoencoder.png)
+![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/raw/ff9aca9ae9a1f51c37227f1f2ac47b1199db9468/plots/MNIST/autoencoder.png)
 ###### Autoencoder + k-Means
-![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/MNIST/clustered_km.png)
+![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/raw/ff9aca9ae9a1f51c37227f1f2ac47b1199db9468/plots/MNIST/clustered_km.png)
 ###### Autoencoder + KLDivergence
-![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/MNIST/clustered_kld.png)
+![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/raw/ff9aca9ae9a1f51c37227f1f2ac47b1199db9468/plots/MNIST/clustered_kld.png)
 #### **COIL20**
 ##### Our network
 | Clustering space| Clustering Accuracy| Normalized Mutual Information 
@@ -97,10 +98,10 @@ DBC| 0.793|0.895
 
 ##### **Latent space visualizations**
 ###### Pixel space
-![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/COIL20/raw.png)
+![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/raw/ff9aca9ae9a1f51c37227f1f2ac47b1199db9468/plots/COIL20/raw.png)
 ###### Autoencoder
-![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/COIL20/autoencoder.png)
+![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/raw/ff9aca9ae9a1f51c37227f1f2ac47b1199db9468/plots/COIL20/autoencoder.png)
 ###### Autoencoder + k-Means
-![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/COIL20/clustered_km.png)
+![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/raw/ff9aca9ae9a1f51c37227f1f2ac47b1199db9468/plots/COIL20/clustered_km.png)
 ###### Autoencoder + KLDivergence
-![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/COIL20/clustered_kld.png)
+![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/raw/ff9aca9ae9a1f51c37227f1f2ac47b1199db9468/plots/COIL20/clustered_kld.png)
