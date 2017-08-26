@@ -2,10 +2,10 @@ Deep Learning for Clustering
 =======================
 Code for project "Deep Learning for Clustering" under lab course  "Deep Learning for Computer Vision and Biomedicine". Depends on **numpy**, **theano**, **lasagne**, **scikit-learn**, **matplotlib**.
 
-####Contributors
-[Mohd Yawar Nihal Siddiqui](mailto:yawarnihal@gmail.com)
-[Elie Aljalbout](mailto:elie.aljalbout@tum.de)
-[Vladimir Golkov](mailto:vladimir.golkov@tum.de) (Supervisor)
+#### Contributors
+- [Mohd Yawar Nihal Siddiqui](mailto:yawarnihal@gmail.com)
+- [Elie Aljalbout](mailto:elie.aljalbout@tum.de)
+- [Vladimir Golkov](mailto:vladimir.golkov@tum.de) (Supervisor)
 
 Usage
 --------
@@ -53,15 +53,16 @@ Clustering was performed with two different loss functions -
 - Loss = ``KL-Divergence(soft assignment distribution, target distribution) + Autoencoder Reconstruction loss ``, where the target distribution is a distribution that improves cluster purity and puts more emphasis on data points assigned with a high confidence. For more details check out the DEC paper [[1]](https://arxiv.org/abs/1511.06335).
 - Loss = ``k-Means loss + Autoencoder Reconstruction loss``
 
-####**MNIST**
-#####Our network
+#### **MNIST**
+
+##### Our network
 | Clustering space| Clustering Accuracy| Normalized Mutual Information 
 -------- | ---|----
 Image pixels | 0.542|0.480
 Autoencoder| 0.760|0.667
 Autoencoder + k-Means Loss| 0.781| 0.796
 Autoencoder + KLDiv Loss| **0.859**| **0.825**
-#####Other networks
+##### Other networks
 |Method| Clustering Accuracy| Normalized Mutual Information 
 -------- | ---|----
 DEC|0.843|0.800
@@ -70,36 +71,36 @@ CNN-RC| - |0.915
 CNN-FD|-|0.876
 DBC| 0.964|0.917
 
-#####**Latent space visualizations**
-#####Pixel space
+##### **Latent space visualizations**
+###### Pixel space
 ![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/MNIST/raw.png)
-#####Autoencoder
+###### Autoencoder
 ![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/MNIST/autoencoder.png)
-#####Autoencoder + k-Means
+###### Autoencoder + k-Means
 ![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/MNIST/clustered_km.png)
-#####Autoencoder + KLDivergence
+###### Autoencoder + KLDivergence
 ![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/MNIST/clustered_kld.png)
-####**COIL20**
-#####Our network
+#### **COIL20**
+##### Our network
 | Clustering space| Clustering Accuracy| Normalized Mutual Information 
 -------- | ---|----
 Image pixels | 0.689|0.793
 Autoencoder| 0.739|0.828
 Autoencoder + k-Means Loss| 0.745| 0.846
 Autoencoder + KLDiv Loss| 0.762| 0.848
-#####Other networks
+##### Other networks
 |Method| Clustering Accuracy| Normalized Mutual Information 
 -------- | ---|----
 DEN|0.725|0.870
 CNN-RC| - |1.000
 DBC| 0.793|0.895
 
-#####**Latent space visualizations**
-#####Pixel space
+##### **Latent space visualizations**
+###### Pixel space
 ![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/COIL20/raw.png)
-#####Autoencoder
+###### Autoencoder
 ![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/COIL20/autoencoder.png)
-#####Autoencoder + k-Means
+###### Autoencoder + k-Means
 ![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/COIL20/clustered_km.png)
-#####Autoencoder + KLDivergence
+###### Autoencoder + KLDivergence
 ![](https://gitlab.lrz.de/ga83fiz/dlcv-praktikum-ss17-clustering/blob/master/plots/COIL20/clustered_kld.png)
