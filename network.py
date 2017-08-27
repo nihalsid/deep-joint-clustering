@@ -1,6 +1,5 @@
 '''
 Created on Jul 11, 2017
-
 @author: yawarnihal, eliealjalbout
 '''
 
@@ -12,293 +11,282 @@ import lasagne
 from lasagne.layers.helper import get_all_layers
 import theano
 
+from customlayers import ClusteringLayer, Unpool2DLayer, getSoftAssignments
+from misc import evaluateKMeans, visualizeData, rescaleReshapeAndSaveImage
 import numpy as np
 import theano.tensor as T
-from misc import evaluateKMeans,visualizeData
-from customlayers import *
 
+from lasagne.layers import batch_norm
+
+# Logging utilities - logs get saved in folder logs named by date and time, and also output
+# at standard output
 
 logFormatter = logging.Formatter("[%(asctime)s]  %(message)s", datefmt='%m/%d %I:%M:%S')
 
 rootLogger = logging.getLogger()
 rootLogger.setLevel(logging.DEBUG)
 
-fileHandler = logging.FileHandler(datetime.now().strftime('dcjc_%H_%M_%d_%m.log'))
+fileHandler = logging.FileHandler(datetime.now().strftime('logs/dcjc_%H_%M_%d_%m.log'))
 fileHandler.setFormatter(logFormatter)
 rootLogger.addHandler(fileHandler)
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 rootLogger.addHandler(consoleHandler)
-        
-invertible_layers = [layers.Conv2DLayer, layers.MaxPool2DLayer]
+
 
 class DCJC(object):
-    
+    # Main class holding autoencoder network and training functions
     def __init__(self, network_description):
-        
         self.name = network_description['name']
-        self.setNetworkTypeBasedOnName()
-        if (self.network_type == 'AE'):
-            self.input_var = T.matrix('input_var')
-            self.target_var = T.matrix('target_var')
-        else:
-            self.input_var = T.tensor4('input_var')
-            self.target_var = T.tensor4('target_var')
-        self.network = self.getNetworkExpression(network_description)
+        netbuilder = NetworkBuilder(network_description)
+        # Get the lasagne network using the network builder class that creates autoencoder with the specified architecture
+        self.network = netbuilder.buildNetwork()
+        self.encode_layer, self.encode_size = netbuilder.getEncodeLayerAndSize()
+        self.t_input, self.t_target = netbuilder.getInputAndTargetVars()
+        self.input_type = netbuilder.getInputType()
+        self.batch_size = netbuilder.getBatchSize()
         rootLogger.info("Network: " + self.networkToStr())
+        # Reconstruction is just output of the network
         recon_prediction_expression = layers.get_output(self.network)
+        # Latent/Encoded space is the output of the bottleneck/encode layer
         encode_prediction_expression = layers.get_output(self.encode_layer, deterministic=True)
-        loss = self.getReconstructionLossExpression(recon_prediction_expression, self.target_var)
+        # Loss for autoencoder = reconstruction loss + weight decay regularizer
+        loss = self.getReconstructionLossExpression(recon_prediction_expression, self.t_target)
+        weightsl2 = lasagne.regularization.regularize_network_params(self.network, lasagne.regularization.l2)
+        loss += (5e-5 * weightsl2)
         params = lasagne.layers.get_all_params(self.network, trainable=True)
-        updates = lasagne.updates.adam(loss, params)
-        self.trainAutoencoder = theano.function([self.input_var, self.target_var], loss, updates=updates) 
-        self.predictReconstruction = theano.function([self.input_var], recon_prediction_expression) 
-        self.predictEncoding = theano.function([self.input_var], encode_prediction_expression)
-    
-    
-    def pretrainWithData(self, dataset, pretrain_epochs,plot=False):
-        
-        batch_size = 250
-        Z = np.zeros((dataset.train_input.shape[0], self.encode_size), dtype=np.float32);
-        train_set = 'train'
-        if self.network_type == 'AE':
-            train_set = 'train_flat'
-        for epoch in range(pretrain_epochs):
-            pretrain_error = 0
-            pretrain_total_batches = 0
-            for batch in dataset.iterate_minibatches(train_set, batch_size, shuffle=True):
+        # SGD with momentum + Decaying learning rate
+        self.learning_rate = theano.shared(lasagne.utils.floatX(0.01))
+        updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=self.learning_rate)
+        # Theano functions for calculating loss, predicting reconstruction, encoding
+        self.trainAutoencoder = theano.function([self.t_input, self.t_target], loss, updates=updates)
+        self.predictReconstruction = theano.function([self.t_input], recon_prediction_expression)
+        self.predictEncoding = theano.function([self.t_input], encode_prediction_expression)
+
+    def getReconstructionLossExpression(self, prediction_expression, t_target):
+        '''
+        Reconstruction loss = means square error between input and reconstructed input
+        '''
+        loss = lasagne.objectives.squared_error(prediction_expression, t_target)
+        loss = loss.mean()
+        return loss
+
+    def pretrainWithData(self, dataset, epochs, continue_training=False):
+        '''
+        Pretrains the autoencoder on the given dataset
+        :param dataset: Data on which the autoencoder is trained
+        :param epochs: number of training epochs
+        :param continue_training: Resume training if saved params available
+        :return: None - (side effect) saves the trained network params and latent space in appropriate location
+        '''
+        batch_size = self.batch_size
+        # array for holding the latent space representation of input
+        Z = np.zeros((dataset.input.shape[0], self.encode_size), dtype=np.float32);
+        # in case we're continuing training load the network params
+        if continue_training:
+            with np.load('saved_params/%s/m_%s.npz' % (dataset.name, self.name)) as f:
+                param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+                lasagne.layers.set_all_param_values(self.network, param_values, trainable=True)
+        for epoch in range(epochs):
+            error = 0
+            total_batches = 0
+            for batch in dataset.iterate_minibatches(self.input_type, batch_size, shuffle=True):
                 inputs, targets = batch
-                pretrain_error += self.trainAutoencoder(inputs, targets)
-                pretrain_total_batches += 1
-            # REMOVE THIS - JUST FOR DEBUGGING#
-            ###############
-            if epoch % 1 == 0:
-                for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
+                error += self.trainAutoencoder(inputs, targets)
+                total_batches += 1
+            # learning rate decay
+            self.learning_rate.set_value(self.learning_rate.get_value() * lasagne.utils.floatX(0.9999))
+            # For every 20th iteration, print the clustering accuracy and nmi - for checking if the network
+            # is actually doing something meaningful - the labels are never used for training
+            if (epoch + 1) % 20 == 0:
+                for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
                     Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
-                rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d/%d [%.4f]" % (epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches))[0])
+                    # Uncomment the next two lines to create reconstruction outputs in folder dumps/ (may need to be created)
+                    # for i, x in enumerate(self.predictReconstruction(batch[0])):
+                    #    rescaleReshapeAndSaveImage(x[0], "dumps/%02d%03d.jpg"%(epoch,i));
+                rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), "%d/%d [%.4f]" % (epoch + 1, epochs, error / total_batches))[0])
             else:
-                rootLogger.info("%-30s     %8s     %8s" % ("%d/%d [%.4f]" % (epoch + 1, pretrain_epochs, pretrain_error / pretrain_total_batches), "", ""))
-            ###############
-        
-        for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
+                # Just report the training loss
+                rootLogger.info("%-30s     %8s     %8s" % ("%d/%d [%.4f]" % (epoch + 1, epochs, error / total_batches), "", ""))
+        # The inputs in latent space after pretraining
+        for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
             Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
+        # Save network params and latent space
+        np.save('saved_params/%s/z_%s.npy' % (dataset.name, self.name), Z)
+        # Borrowed from mnist lasagne example
+        np.savez('saved_params/%s/m_%s.npz' % (dataset.name, self.name), *lasagne.layers.get_all_param_values(self.network, trainable=True))
 
-        if plot:
-            visualizeData(Z,dataset.train_labels,dataset.cluster_nrs)   
-
-        np.save('models/%s/z_%s.npy' % (dataset.name,self.name), Z)
-        np.savez('models/%s/m_%s.npz' % (dataset.name,self.name), *lasagne.layers.get_all_param_values(self.network))
-    
-    # load pretrained model, then either train with DEC loss jointly with reconstruction or alone
-    def doClustering(self, dataset, complete_loss, cluster_train_epochs, repeats,plot=False):
-        
-        P = T.matrix('P')
-        batch_size = 250
-        with np.load('models/%s/m_%s.npz' % (dataset.name,self.name)) as f:
+    def doClusteringWithKLdivLoss(self, dataset, combined_loss, epochs):
+        '''
+        Trains the autoencoder with combined kldivergence loss and reconstruction loss, or just the kldivergence loss
+        At the moment does not give good results
+        :param dataset: Data on which the autoencoder is trained
+        :param combined_loss: boolean - whether to use both reconstruction and kl divergence loss or just kldivergence loss
+        :param epochs: Number of training epochs
+        :return: None - (side effect) saves the trained network params and latent space in appropriate location
+        '''
+        batch_size = self.batch_size
+        # Load saved network params and inputs in latent space obtained after pretraining
+        with np.load('saved_params/%s/m_%s.npz' % (dataset.name, self.name)) as f:
             param_values = [f['arr_%d' % i] for i in range(len(f.files))]
-        lasagne.layers.set_all_param_values(self.network, param_values)
-        Z = np.load('models/%s/z_%s.npy' % (dataset.name,self.name))
-        quality_desc, cluster_centers = evaluateKMeans(Z, dataset.train_labels, 'Initial')
+            lasagne.layers.set_all_param_values(self.network, param_values, trainable=True)
+        Z = np.load('saved_params/%s/z_%s.npy' % (dataset.name, self.name))
+        # Find initial cluster centers
+        quality_desc, cluster_centers = evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), 'Initial')
         rootLogger.info(quality_desc)
-        dec_network = ClusteringLayer(self.encode_layer, 10, cluster_centers, batch_size, self.encode_size)
-        dec_output_exp = layers.get_output(dec_network, deterministic=True)
-        encode_output_exp = layers.get_output(self.network, deterministic=True)
-        clustering_loss = self.getClusteringLossExpression(dec_output_exp, P)
-        reconstruction_loss = self.getReconstructionLossExpression(encode_output_exp, self.target_var)
+        # P is the more pure target distribution we want to achieve
+        P = T.matrix('P')
+        # Extend the network so it calculates soft assignment cluster distribution for the inputs in latent space
+        clustering_network = ClusteringLayer(self.encode_layer, dataset.getClusterCount(), cluster_centers, batch_size,self.encode_size)
+        soft_assignments = layers.get_output(clustering_network)
+        reconstructed_output_exp = layers.get_output(self.network)
+        # Clustering loss = kl divergence between the pure distribution P and current distribution
+        clustering_loss = self.getKLDivLossExpression(soft_assignments, P)
+        reconstruction_loss = self.getReconstructionLossExpression(reconstructed_output_exp, self.t_target)
         params_ae = lasagne.layers.get_all_params(self.network, trainable=True)
-        params_dec = lasagne.layers.get_all_params(dec_network, trainable=True)
-        
+        params_dec = lasagne.layers.get_all_params(clustering_network, trainable=True)
+        # Total loss = weighted sum of the two losses
         w_cluster_loss = 1
         w_reconstruction_loss = 1
         total_loss = w_cluster_loss * clustering_loss
-        if (complete_loss):
-            total_loss =  total_loss + w_reconstruction_loss * reconstruction_loss 
+        if (combined_loss):
+            total_loss = total_loss + w_reconstruction_loss * reconstruction_loss
         all_params = params_dec
-        if complete_loss:
+        if combined_loss:
             all_params.extend(params_ae)
+        # Parameters = unique parameters in the new network
         all_params = list(set(all_params))
-
-        updates = lasagne.updates.adam(total_loss, all_params)
-        
-        getSoftAssignments = theano.function([self.input_var], dec_output_exp)
-        
+        # SGD with momentum, LR = 0.01, Momentum = 0.9
+        updates = lasagne.updates.nesterov_momentum(total_loss, all_params, learning_rate=0.01)
+        # Function to calculate the soft assignment distribution
+        getSoftAssignments = theano.function([self.t_input], soft_assignments)
+        # Train function - based on whether complete loss is used or not
         trainFunction = None
-        if complete_loss:
-            trainFunction = theano.function([self.input_var, self.target_var, P], total_loss, updates=updates)
+        if combined_loss:
+            trainFunction = theano.function([self.t_input, self.t_target, P], total_loss, updates=updates)
         else:
-            trainFunction = theano.function([self.input_var, P], clustering_loss, updates=updates)
-        
-        train_set = 'train'
-        if self.network_type == 'AE':
-            train_set = 'train_flat'
-        
-        for _iter in range(repeats):
-            qij = np.zeros((dataset.train_input.shape[0], 10), dtype=np.float32)
-            for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
+            trainFunction = theano.function([self.t_input, P], clustering_loss, updates=updates)
+        for epoch in range(epochs):
+            # Get the current distribution
+            qij = np.zeros((dataset.input.shape[0], dataset.getClusterCount()), dtype=np.float32)
+            for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
                 qij[i * batch_size: (i + 1) * batch_size] = getSoftAssignments(batch[0])
-            pij = self.calculateP(qij) 
-            
-            for _epoch in range(cluster_train_epochs):
-                cluster_train_error = 0
-                cluster_train_total_batches = 0
-                for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, pij, shuffle=True)):
-                    if (complete_loss):
-                        cluster_train_error += trainFunction(batch[0], batch[0], batch[1])
-                    else:
-                        cluster_train_error += trainFunction(batch[0], batch[1])
-                    cluster_train_total_batches += 1            
-                #### CAN REMOVE - MORE THAN 1 EPOCHS WERE GIVING BAD RESULTS ####
-                '''
-                for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
-                    Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
-                rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d.%d/%d.%d [%.4f]" % (_iter, _epoch + 1, repeats, cluster_train_epochs, cluster_train_error / cluster_train_total_batches))[0])
-                '''
-                #################################################################
-            for i, batch in enumerate(dataset.iterate_minibatches(train_set, batch_size, shuffle=False)):
+            # Calculate the desired distribution
+            pij = self.calculateP(qij)
+            error = 0
+            total_batches = 0
+            for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, pij, shuffle=True)):
+                if (combined_loss):
+                    error += trainFunction(batch[0], batch[0], batch[1])
+                else:
+                    error += trainFunction(batch[0], batch[1])
+                total_batches += 1
+            for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
                 Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
-            if plot:
-                visualizeData(Z,dataset.train_labels,dataset.cluster_nrs)   
-            rootLogger.info(evaluateKMeans(Z, dataset.train_labels, "%d/%d [%.4f]" % (_iter, repeats, cluster_train_error / cluster_train_total_batches))[0])
-    
+            # For every 10th iteration, print the clustering accuracy and nmi - for checking if the network
+            # is actually doing something meaningful - the labels are never used for training
+            if (epoch + 1) % 10 == 0:
+                rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), "%d [%.4f]" % (
+                    epoch, error / total_batches))[0])
+
+        # Save the inputs in latent space and the network parameters
+        for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
+            Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
+        np.save('saved_params/%s/pc_z_%s.npy' % (dataset.name, self.name), Z)
+        np.savez('saved_params/%s/pc_m_%s.npz' % (dataset.name, self.name),
+                 *lasagne.layers.get_all_param_values(self.network, trainable=True))
+
     def calculateP(self, Q):
+        # Function to calculate the desired distribution Q^2, for more details refer to DEC paper
         f = Q.sum(axis=0)
         pij_numerator = Q * Q
         pij_numerator = pij_numerator / f
         normalizer_p = pij_numerator.sum(axis=1).reshape((Q.shape[0], 1))
         P = pij_numerator / normalizer_p
         return P
-    
-    def getClusteringLossExpression(self, Q_expression, P_expression):
+
+    def getKLDivLossExpression(self, Q_expression, P_expression):
+        # Loss = KL Divergence between the two distributions
         log_arg = P_expression / Q_expression
         log_exp = T.log(log_arg)
         sum_arg = P_expression * log_exp
         loss = sum_arg.sum(axis=1).sum(axis=0)
         return loss
-    
-    def getReconstructionLossExpression(self, prediction_expression, target_var):
-        loss = lasagne.objectives.squared_error(prediction_expression, target_var)
-        loss = loss.mean()
+
+    def doClusteringWithKMeansLoss(self, dataset, epochs):
+        '''
+        Trains the autoencoder with combined kMeans loss and reconstruction loss
+        At the moment does not give good results
+        :param dataset: Data on which the autoencoder is trained
+        :param epochs: Number of training epochs
+        :return: None - (side effect) saves the trained network params and latent space in appropriate location
+        '''
+        batch_size = self.batch_size
+        # Load the inputs in latent space produced by the pretrained autoencoder and use it to initialize cluster centers
+        Z = np.load('saved_params/%s/z_%s.npy' % (dataset.name, self.name))
+        quality_desc, cluster_centers = evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), 'Initial')
+        rootLogger.info(quality_desc)
+        # Load network parameters - code borrowed from mnist lasagne example
+        with np.load('saved_params/%s/m_%s.npz' % (dataset.name, self.name)) as f:
+            param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+            lasagne.layers.set_all_param_values(self.network, param_values, trainable=True)
+        # reconstruction loss is just rms loss between input and reconstructed input
+        reconstruction_loss = self.getReconstructionLossExpression(layers.get_output(self.network), self.t_target)
+        # extent the network to do soft cluster assignments
+        clustering_network = ClusteringLayer(self.encode_layer, dataset.getClusterCount(), cluster_centers, batch_size, self.encode_size)
+        soft_assignments = layers.get_output(clustering_network)
+        # k-means loss is the sum of distances from the cluster centers weighted by the soft assignments to the clusters
+        kmeansLoss = self.getKMeansLoss(layers.get_output(self.encode_layer), soft_assignments, clustering_network.W, dataset.getClusterCount(), self.encode_size, batch_size)
+        params = lasagne.layers.get_all_params(self.network, trainable=True)
+        # total loss = reconstruction loss + lambda * kmeans loss
+        weight_reconstruction = 1
+        weight_kmeans = 0.1
+        total_loss = weight_kmeans * kmeansLoss + weight_reconstruction * reconstruction_loss
+        updates = lasagne.updates.nesterov_momentum(total_loss, params, learning_rate=0.01)
+        trainKMeansWithAE = theano.function([self.t_input, self.t_target], total_loss, updates=updates)
+        for epoch in range(epochs):
+            error = 0
+            total_batches = 0
+            for batch in dataset.iterate_minibatches(self.input_type, batch_size, shuffle=True):
+                inputs, targets = batch
+                error += trainKMeansWithAE(inputs, targets)
+                total_batches += 1
+            # For every 10th epoch, update the cluster centers and print the clustering accuracy and nmi - for checking if the network
+            # is actually doing something meaningful - the labels are never used for training
+            if (epoch + 1) % 10 == 0:
+                for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
+                    Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
+                quality_desc, cluster_centers = evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), "%d/%d [%.4f]" % (epoch + 1, epochs, error / total_batches))
+                rootLogger.info(quality_desc)
+            else:
+                # Just print the training loss
+                rootLogger.info("%-30s     %8s     %8s" % ("%d/%d [%.4f]" % (epoch + 1, epochs, error / total_batches), "", ""))
+
+        # Save the inputs in latent space and the network parameters
+        for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
+            Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
+        np.save('saved_params/%s/pc_km_z_%s.npy' % (dataset.name, self.name), Z)
+        np.savez('saved_params/%s/pc_km_m_%s.npz' % (dataset.name, self.name),
+                 *lasagne.layers.get_all_param_values(self.network, trainable=True))
+
+
+    def getKMeansLoss(self, latent_space_expression, soft_assignments, t_cluster_centers, num_clusters, latent_space_dim, num_samples, soft_loss=False):
+        # Kmeans loss = weighted sum of latent space representation of inputs from the cluster centers
+        z = latent_space_expression.reshape((num_samples, 1, latent_space_dim))
+        z = T.tile(z, (1, num_clusters, 1))
+        u = t_cluster_centers.reshape((1, num_clusters, latent_space_dim))
+        u = T.tile(u, (num_samples, 1, 1))
+        distances = (z - u).norm(2, axis=2).reshape((num_samples, num_clusters))
+        if soft_loss:
+            weighted_distances = distances * soft_assignments
+            loss = weighted_distances.sum(axis=1).mean()
+        else:
+            loss = distances.min(axis=1).mean()
         return loss
 
-    # Functions for network construction based on architecture dictionary
-        
-    def getNonLinearity(self, non_linearity_name):
-        return {
-                'rectify': lasagne.nonlinearities.rectify,
-                'linear': lasagne.nonlinearities.linear,
-                'elu': lasagne.nonlinearities.elu
-                }[non_linearity_name]
-    
-    def setNetworkTypeBasedOnName(self):
-        if (self.name.split('_')[0].split('-')[0] == 'fc'):
-            self.network_type = 'AE'
-        else:
-            self.network_type = 'CAE'
-      
-    # Returns a lasagne layer based on a layer definition dictionary      
-    def getLayer(self, network, layer_definition, is_encode_layer=False, is_last_layer=False):
-        if (layer_definition['layer_type'] == 'Dense'):
-            if is_last_layer:
-                return layers.DenseLayer(network, num_units=layer_definition['num_units'], nonlinearity=lasagne.nonlinearities.linear, name='fc[{}]'.format(layer_definition['num_units']))
-            else:
-                return layers.DenseLayer(network, num_units=layer_definition['num_units'], nonlinearity=lasagne.nonlinearities.rectify, name='fc[{}]'.format(layer_definition['num_units']))
-        if (layer_definition['layer_type'] == 'Conv2D'):
-            network = layers.Conv2DLayer(network, num_filters=layer_definition['num_filters'], pad='same', filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='{}[{}]'.format(layer_definition['num_filters'], 'x'.join([str(fs) for fs in layer_definition['filter_size']])))
-            if (is_encode_layer):
-                self.encode_layer = lasagne.layers.flatten(network, name='fl')
-                self.encode_size = layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2]
-            return network
-        elif (layer_definition['layer_type'] == 'MaxPool2D'):
-            network = lasagne.layers.MaxPool2DLayer(network, pool_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), name='max[{}]'.format('x'.join([str(fs) for fs in layer_definition['filter_size']])))
-            if (is_encode_layer):
-                self.encode_layer = lasagne.layers.flatten(network, name='fl')
-                self.encode_size = layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2]
-            return network
-        elif (layer_definition['layer_type'] == 'Encode'):
-            if self.network_type == 'CAE':
-                # network = lasagne.layers.flatten(network, name='fl')
-                network = lasagne.layers.DenseLayer(network, num_units=layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='fc[{}]'.format(layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2]))
-                network = lasagne.layers.DenseLayer(network, num_units=layer_definition['encode_size'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='fc[{}]'.format(layer_definition['encode_size']))
-                network = lasagne.layers.GaussianNoiseLayer(network, 0.15, name='noi')
-                self.encode_layer = network
-                self.encode_size = layer_definition['encode_size']
-                network = lasagne.layers.DenseLayer(network, num_units=layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='fc[{}]'.format(layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2]))
-                return lasagne.layers.reshape(network, (-1, layer_definition['output_shape'][0], layer_definition['output_shape'][1], layer_definition['output_shape'][2]), name='rs')
-            else:
-                network = layers.DenseLayer(network, num_units=layer_definition['num_units'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), name='fc[{}]'.format(layer_definition['num_units']))
-                self.encode_layer = network
-                self.encode_size = layer_definition['num_units']
-                return network
-        elif (layer_definition['layer_type'] == 'Unpool2D'):
-            return Unpool2DLayer(network, (layer_definition['filter_size'][0], layer_definition['filter_size'][1]), name='ups[{}]'.format(str(layer_definition['filter_size'][0]) + 'x' + str(layer_definition['filter_size'][1])))
-        elif (layer_definition['layer_type'] == 'Deconv2D'):
-            return layers.Deconv2DLayer(network, crop='same', num_filters=layer_definition['num_filters'], filter_size=(layer_definition['filter_size'][0], layer_definition['filter_size'][1]), nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), W=lasagne.init.GlorotUniform(), name='{}[{}]'.format(layer_definition['num_filters'], 'x'.join([str(fs) for fs in layer_definition['filter_size']])))
-        elif (layer_definition['layer_type'] == 'Input'):
-            if self.network_type == 'CAE':
-                return layers.InputLayer(shape=(None, layer_definition['output_shape'][0], layer_definition['output_shape'][1], layer_definition['output_shape'][2]), input_var=self.input_var)
-            else:
-                return layers.InputLayer(shape=(None, layer_definition['output_shape'][2]), input_var=self.input_var)
-    
-    def populateNetworkOutputShapes(self, network_description):
-        last_layer_dimensions = network_description['layers_encode'][0]['output_shape']
-        for layer in network_description['layers_encode']:
-            if (layer['layer_type'] == 'MaxPool2D'):
-                layer['output_shape'] = [last_layer_dimensions[0], last_layer_dimensions[1] / layer['filter_size'][0], last_layer_dimensions[2] / layer['filter_size'][1]]
-            elif (layer['layer_type'] == 'Conv2D'):
-                layer['output_shape'] = [layer['num_filters'], last_layer_dimensions[1] - (layer['filter_size'][0] + 1) * 0 , last_layer_dimensions[2] - (layer['filter_size'][1] + 1) * 0]
-            elif (layer['layer_type'] == 'Encode'):
-                if self.network_type == 'CAE':
-                    layer['output_shape'] = last_layer_dimensions
-                else:
-                    layer['output_shape'] = [1, 1, layer['num_units']] 
-            elif (layer['layer_type'] == 'Dense'):
-                layer['output_shape'] = [1, 1, layer['num_units']] 
-            last_layer_dimensions = layer['output_shape']
-
-    # determine defintiion of the decoder part of the (C)AE
-    def populateMirroredNetwork(self, network_description):
-        network_description['layers_decode'] = [] 
-        old_network_description = network_description.copy()
-        for i in range(len(old_network_description['layers_encode']) - 1, -1, -1):
-            if (old_network_description['layers_encode'][i]['layer_type'] == 'MaxPool2D'):
-                old_network_description['layers_decode'].append({
-                                                             'layer_type':'Unpool2D',
-                                                             'filter_size':old_network_description['layers_encode'][i]['filter_size']
-                                                             })
-            elif(old_network_description['layers_encode'][i]['layer_type'] == 'Conv2D'):
-                network_description['layers_decode'].append({
-                                                             'layer_type':'Deconv2D',
-                                                             'non_linearity': old_network_description['layers_encode'][i]['non_linearity'],
-                                                             'filter_size':old_network_description['layers_encode'][i]['filter_size'],
-                                                             'num_filters':old_network_description['layers_encode'][i - 1]['output_shape'][0]
-                                                             })
-            elif(old_network_description['layers_encode'][i]['layer_type'] == 'Dense' or (old_network_description['layers_encode'][i]['layer_type'] == 'Encode' and self.network_type == 'AE')):
-                network_description['layers_decode'].append({
-                                                             'layer_type':'Dense',
-                                                             'num_units':old_network_description['layers_encode'][i - 1]['output_shape'][2]
-                                                             })
-                
-    #     
-    def getNetworkExpression(self, network_description):
-        network = None
-        self.populateNetworkOutputShapes(network_description)
-        for i, layer in enumerate(network_description['layers_encode']):
-            network = self.getLayer(network, layer, i == len(network_description['layers_encode']) - 1)
-            
-        layer_list = get_all_layers(network)
-        if network_description['use_inverse_layers'] == True:
-            for i in range(len(layer_list) - 1, 0, -1):
-                if any(type(layer_list[i]) is invertible_layer for invertible_layer in invertible_layers):
-                    network = lasagne.layers.InverseLayer(network, layer_list[i], name='Inv[' + layer_list[i].name + ']')
-        else:
-            self.populateMirroredNetwork(network_description)
-            for i, layer in enumerate(network_description['layers_decode']):
-                network = self.getLayer(network, layer, False, i == len(network_description['layers_decode']) - 1) # that would make the reverse of the second layer linear ??
-        return network
-
-   
     def networkToStr(self):
+        # Utility method for printing the network structure in a shortened form
         layers = lasagne.layers.get_all_layers(self.network)
         result = ''
         for layer in layers:
@@ -310,3 +298,201 @@ class DCJC(object):
         return result.strip()
 
 
+class NetworkBuilder(object):
+    '''
+    Class that handles parsing the architecture dictionary and creating an autoencoder out of it
+    '''
+
+    def __init__(self, network_description):
+        '''
+        :param network_description: python dictionary specifying the autoencoder architecture
+        '''
+        # Populate the missing values in the dictionary with defaults, also add the missing decoder part
+        # of the autoencoder which is missing in the dictionary
+        self.network_description = self.populateMissingDescriptions(network_description)
+        # Create theano variables for input and output - would be of different types for simple and convolutional autoencoders
+        if self.network_description['network_type'] == 'CAE':
+            self.t_input = T.tensor4('input_var')
+            self.t_target = T.tensor4('target_var')
+            self.input_type = "IMAGE"
+        else:
+            self.t_input = T.matrix('input_var')
+            self.t_target = T.matrix('target_var')
+            self.input_type = "FLAT"
+        self.network_type = self.network_description['network_type']
+        self.batch_norm = bool(self.network_description["use_batch_norm"])
+        self.layer_list = []
+
+    def getBatchSize(self):
+        return self.network_description["batch_size"]
+
+    def getInputAndTargetVars(self):
+        return self.t_input, self.t_target
+
+    def getInputType(self):
+        return self.input_type
+
+    def buildNetwork(self):
+        '''
+        :return: Lasagne autoencoder network based on the network decription dictionary
+        '''
+        network = None
+        for layer in self.network_description['layers']:
+            network = self.processLayer(network, layer)
+        return network
+
+    def getEncodeLayerAndSize(self):
+        '''
+        :return: The encode layer - layer between encoder and decoder (bottleneck)
+        '''
+        return self.encode_layer, self.encode_size
+
+    def populateDecoder(self, encode_layers):
+        '''
+        Creates a specification for the mirror of encode layers - which completes the autoencoder specification
+        '''
+        decode_layers = []
+        for i, layer in reversed(list(enumerate(encode_layers))):
+            if (layer["type"] == "MaxPool2D*"):
+                # Inverse max pool doesn't upscale the input, but does reverse of what happened when maxpool
+                # operation was performed
+                decode_layers.append({
+                    "type": "InverseMaxPool2D",
+                    "layer_index": i,
+                    'filter_size': layer['filter_size']
+                })
+            elif (layer["type"] == "MaxPool2D"):
+                # Unpool just upscales the input back
+                decode_layers.append({
+                    "type": "Unpool2D",
+                    'filter_size': layer['filter_size']
+                })
+            elif (layer["type"] == "Conv2D"):
+                # Inverse convolution = deconvolution
+                decode_layers.append({
+                    'type': 'Deconv2D',
+                    'conv_mode': layer['conv_mode'],
+                    'non_linearity': layer['non_linearity'],
+                    'filter_size': layer['filter_size'],
+                    'num_filters': encode_layers[i - 1]['output_shape'][0]
+                })
+            elif (layer["type"] == "Dense" and not layer["is_encode"]):
+                # Inverse of dense layers is just a dense layer, though we dont create an inverse layer corresponding to bottleneck layer
+                decode_layers.append({
+                    'type': 'Dense',
+                    'num_units': encode_layers[i]['output_shape'][2],
+                    'non_linearity': encode_layers[i]['non_linearity']
+                })
+                # if the layer following the dense layer is one of these, we need to reshape the output
+                if (encode_layers[i - 1]['type'] in ("Conv2D", "MaxPool2D", "MaxPool2D*")):
+                    decode_layers.append({
+                        "type": "Reshape",
+                        "output_shape": encode_layers[i - 1]['output_shape']
+                    })
+        encode_layers.extend(decode_layers)
+
+    def populateShapes(self, layers):
+        # Fills the dictionary with shape information corresponding to each layer, which will be used in creating the decode layers
+        last_layer_dimensions = layers[0]['output_shape']
+        for layer in layers[1:]:
+            if (layer['type'] == 'MaxPool2D' or layer['type'] == 'MaxPool2D*'):
+                layer['output_shape'] = [last_layer_dimensions[0], last_layer_dimensions[1] / layer['filter_size'][0],
+                                         last_layer_dimensions[2] / layer['filter_size'][1]]
+            elif (layer['type'] == 'Conv2D'):
+                multiplier = 1
+                if (layer['conv_mode'] == "same"):
+                    multiplier = 0
+                layer['output_shape'] = [layer['num_filters'],
+                                         last_layer_dimensions[1] - (layer['filter_size'][0] - 1) * multiplier,
+                                         last_layer_dimensions[2] - (layer['filter_size'][1] - 1) * multiplier]
+            elif (layer['type'] == 'Dense'):
+                layer['output_shape'] = [1, 1, layer['num_units']]
+            last_layer_dimensions = layer['output_shape']
+
+    def populateMissingDescriptions(self, network_description):
+        # Complete the architecture dictionary by filling in default values and populating description for decoder
+        if 'network_type' not in network_description:
+            if (network_description['name'].split('_')[0].split('-')[0] == 'fc'):
+                network_description['network_type'] = 'AE'
+            else:
+                network_description['network_type'] = 'CAE'
+        for layer in network_description['layers']:
+            if 'conv_mode' not in layer:
+                layer['conv_mode'] = 'valid'
+            layer['is_encode'] = False
+        network_description['layers'][-1]['is_encode'] = True
+        if 'output_non_linearity' not in network_description:
+            network_description['output_non_linearity'] = network_description['layers'][1]['non_linearity']
+        self.populateShapes(network_description['layers'])
+        self.populateDecoder(network_description['layers'])
+        if 'use_batch_norm' not in network_description:
+            network_description['use_batch_norm'] = False
+        for layer in network_description['layers']:
+            if 'is_encode' not in layer:
+                layer['is_encode'] = False
+            layer['is_output'] = False
+        network_description['layers'][-1]['is_output'] = True
+        network_description['layers'][-1]['non_linearity'] = network_description['output_non_linearity']
+        return network_description
+
+    def processLayer(self, network, layer_definition):
+        '''
+        Create a lasagne layer corresponding to the "layer definition"
+        '''
+        if (layer_definition["type"] == "Input"):
+            if self.network_type == 'CAE':
+                network = lasagne.layers.InputLayer(shape=tuple([None] + layer_definition['output_shape']), input_var=self.t_input)
+            elif self.network_type == 'AE':
+                network = lasagne.layers.InputLayer(shape=(None, layer_definition['output_shape'][2]), input_var=self.t_input)
+        elif (layer_definition['type'] == 'Dense'):
+            network = lasagne.layers.DenseLayer(network, num_units=layer_definition['num_units'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), name=self.getLayerName(layer_definition))
+        elif (layer_definition['type'] == 'Conv2D'):
+            network = lasagne.layers.Conv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=tuple(layer_definition["filter_size"]), pad=layer_definition['conv_mode'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), name=self.getLayerName(layer_definition))
+        elif (layer_definition['type'] == 'MaxPool2D' or layer_definition['type'] == 'MaxPool2D*'):
+            network = lasagne.layers.MaxPool2DLayer(network, pool_size=tuple(layer_definition["filter_size"]), name=self.getLayerName(layer_definition))
+        elif (layer_definition['type'] == 'InverseMaxPool2D'):
+            network = lasagne.layers.InverseLayer(network, self.layer_list[layer_definition['layer_index']], name=self.getLayerName(layer_definition))
+        elif (layer_definition['type'] == 'Unpool2D'):
+            network = Unpool2DLayer(network, tuple(layer_definition['filter_size']), name=self.getLayerName(layer_definition))
+        elif (layer_definition['type'] == 'Reshape'):
+            network = lasagne.layers.ReshapeLayer(network, shape=tuple([-1] + layer_definition["output_shape"]), name=self.getLayerName(layer_definition))
+        elif (layer_definition['type'] == 'Deconv2D'):
+            network = lasagne.layers.Deconv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=tuple(layer_definition['filter_size']), crop=layer_definition['conv_mode'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), name=self.getLayerName(layer_definition))
+        self.layer_list.append(network)
+        # Batch normalization on all convolutional layers except if at output
+        if (self.batch_norm and (not layer_definition["is_output"]) and layer_definition['type'] in ("Conv2D", "Deconv2D")):
+            network = batch_norm(network)
+        # Save the encode layer separately
+        if (layer_definition['is_encode']):
+            self.encode_layer = lasagne.layers.flatten(network, name='fl')
+            self.encode_size = layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2]
+        return network
+
+    def getLayerName(self, layer_definition):
+        '''
+        Utility method to name layers
+        '''
+        if (layer_definition['type'] == 'Dense'):
+            return 'fc[{}]'.format(layer_definition['num_units'])
+        elif (layer_definition['type'] == 'Conv2D'):
+            return '{}[{}]'.format(layer_definition['num_filters'],
+                                   'x'.join([str(fs) for fs in layer_definition['filter_size']]))
+        elif (layer_definition['type'] == 'MaxPool2D' or layer_definition['type'] == 'MaxPool2D*'):
+            return 'max[{}]'.format('x'.join([str(fs) for fs in layer_definition['filter_size']]))
+        elif (layer_definition['type'] == 'InverseMaxPool2D'):
+            return 'ups*[{}]'.format('x'.join([str(fs) for fs in layer_definition['filter_size']]))
+        elif (layer_definition['type'] == 'Unpool2D'):
+            return 'ups[{}]'.format(
+                str(layer_definition['filter_size'][0]) + 'x' + str(layer_definition['filter_size'][1]))
+        elif (layer_definition['type'] == 'Deconv2D'):
+            return '{}[{}]'.format(layer_definition['num_filters'],
+                                   'x'.join([str(fs) for fs in layer_definition['filter_size']]))
+        elif (layer_definition['type'] == 'Reshape'):
+            return "rsh"
+
+    def getNonLinearity(self, non_linearity):
+        return {
+            'rectify': lasagne.nonlinearities.rectify,
+            'linear': lasagne.nonlinearities.linear,
+            'elu': lasagne.nonlinearities.elu
+        }[non_linearity]

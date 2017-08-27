@@ -1,77 +1,75 @@
 '''
 Created on Jul 11, 2017
-
 @author: yawarnihal, eliealjalbout
 '''
 
 import cPickle
 import gzip
 
+import numpy as np
 from PIL import Image
+import matplotlib
+
+# For plotting graphs via ssh with no display
+# Ref: https://stackoverflow.com/questions/2801882/generating-a-png-with-matplotlib-when-display-is-undefined
+matplotlib.use('Agg')
+
+from matplotlib import pyplot as plt
+from numpy import float32
 from sklearn import metrics
 from sklearn.cluster.k_means_ import KMeans
-from matplotlib import pyplot as plt
-from tsne import bh_sne
+from sklearn import manifold
+from sklearn.utils.linear_assignment_ import linear_assignment
 
-import numpy as np
 
-# todo: write function that counts cluster numbers
-class Dataset(object):
+class DatasetHelper(object):
+    '''
+    Utility class for handling different datasets
+    '''
 
-    def __init__(self
-                ,name
-                ,fname
-                ,cluster_nrs
-                ):
+    def __init__(self, name):
+        '''
+        A dataset instance keeps dataset name, the input set, the flat version of input set
+        and the cluster labels
+        '''
+        self.name = name
+        if name == 'MNIST':
+            self.dataset = MNISTDataset()
+        elif name == 'STL':
+            self.dataset = STLDataset()
+        elif name == 'COIL20':
+            self.dataset = COIL20Dataset()
 
-        self.name           = name
-        self.fname          = fname
-        self.cluster_nrs    = cluster_nrs
+    def loadDataset(self):
+        '''
+        Load the appropriate dataset based on the dataset name
+        '''
+        self.input, self.labels, self.input_flat = self.dataset.loadDataset()
 
-    
-    def loadDataSet(self):
-        
-        f = gzip.open(self.fname, 'rb')
-        train_set, valid_set, test_set = cPickle.load(f)
-        f.close()
-        self.train_input, self.train_target, self.train_input_flat, self.train_labels = self.prepareDatasetForAutoencoder(train_set[0], train_set[1])
-        self.valid_input, self.valid_target, self.valid_input_flat, self.valid_labels = self.prepareDatasetForAutoencoder(valid_set[0], valid_set[1])
-        self.test_input, self.test_target, self.test_input_flat, self.test_labels = self.prepareDatasetForAutoencoder(test_set[0], test_set[1])
-        self.train_input = np.concatenate((self.train_input, self.valid_input, self.test_input))
-        self.train_target = np.concatenate((self.train_target, self.valid_target, self.test_target))
-        self.train_labels = np.concatenate((self.train_labels, self.valid_labels, self.test_labels))
-        self.train_input_flat = np.concatenate((self.train_input_flat, self.valid_input_flat, self.test_input_flat))
-#         self.train_input = self.train_input[0:10000]
-#         self.train_target = self.train_target[0:10000]
-#         self.train_labels = self.train_labels[0:10000]
-#         self.train_input_flat = self.train_input_flat[0:10000]
-        
-    def prepareDatasetForAutoencoder(self, inputs, targets):
-        
-        X = inputs
-        X = X.reshape((-1, 1, 28, 28)) 
-        return (X, X, X.reshape((-1, 28 * 28)), targets)
+    def getClusterCount(self):
+        '''
+        Number of clusters in the dataset - e.g 10 for mnist, 20 for coil20
+        '''
+        return self.dataset.cluster_count
 
     def iterate_minibatches(self, set_type, batch_size, targets=None, shuffle=False):
-        
+        '''
+        Utility method for getting batches out of a dataset
+        :param set_type: IMAGE - suitable input for CNNs or FLAT - suitable for DNN
+        :param batch_size: Size of minibatches
+        :param targets: None if the output should be same as inputs (autoencoders), otherwise takes a target array from which batches can be extracted. Must have the same order as the dataset, e.g, dataset inputs nth sample has output at target's nth element
+        :param shuffle: If the dataset needs to be shuffled or not
+        :return: generates a batches of size batch_size from the dataset, each batch is the pair (input, output)
+        '''
         inputs = None
-        if set_type == 'train':
-            inputs = self.train_input
+        if set_type == 'IMAGE':
+            inputs = self.input
             if targets is None:
-                targets = self.train_target
-        elif set_type == 'train_flat':
-            inputs = self.train_input_flat
+                targets = self.input
+        elif set_type == 'FLAT':
+            inputs = self.input_flat
             if targets is None:
-                targets = self.train_input_flat
-                
-        elif set_type == 'validation':
-            inputs = self.valid_input
-            if targets is None:
-                targets = self.valid_target
-        elif set_type == 'test':
-            inputs = self.test_input
-            if targets is None:
-                targets = self.test_target
+                targets = self.input_flat
         assert len(inputs) == len(targets)
         if shuffle:
             indices = np.arange(len(inputs))
@@ -83,44 +81,145 @@ class Dataset(object):
                 excerpt = slice(start_idx, start_idx + batch_size)
             yield inputs[excerpt], targets[excerpt]
 
-    
+
+class MNISTDataset(object):
+    '''
+    Class for reading and preparing MNIST dataset
+    '''
+
+    def __init__(self):
+        self.cluster_count = 10
+
+    def loadDataset(self):
+        f = gzip.open('mnist/mnist.pkl.gz', 'rb')
+        train_set, _, test_set = cPickle.load(f)
+        train_input, train_input_flat, train_labels = self.prepareDatasetForAutoencoder(train_set[0], train_set[1])
+        test_input, test_input_flat, test_labels = self.prepareDatasetForAutoencoder(test_set[0], test_set[1])
+        f.close()
+        # combine test and train samples
+        return [np.concatenate((train_input, test_input)), np.concatenate((train_labels, test_labels)),
+                np.concatenate((train_input_flat, test_input_flat))]
+
+    def prepareDatasetForAutoencoder(self, inputs, targets):
+        '''
+        Returns the image, flat and labels as a tuple
+        '''
+        X = inputs
+        X = X.reshape((-1, 1, 28, 28))
+        return (X, X.reshape((-1, 28 * 28)), targets)
+
+
+class STLDataset(object):
+    '''
+    Class for preparing and reading the STL dataset
+    '''
+
+    def __init__(self):
+        self.cluster_count = 10
+
+    def loadDataset(self):
+        train_x = np.fromfile('stl/train_X.bin', dtype=np.uint8)
+        train_y = np.fromfile('stl/train_y.bin', dtype=np.uint8)
+        test_x = np.fromfile('stl/train_X.bin', dtype=np.uint8)
+        test_y = np.fromfile('stl/train_y.bin', dtype=np.uint8)
+        train_input = np.reshape(train_x, (-1, 3, 96, 96))
+        train_labels = train_y
+        train_input_flat = np.reshape(test_x, (-1, 1, 3 * 96 * 96))
+        test_input = np.reshape(test_x, (-1, 3, 96, 96))
+        test_labels = test_y
+        test_input_flat = np.reshape(test_x, (-1, 1, 3 * 96 * 96))
+        return [np.concatenate(train_input, test_input), np.concatenate(train_labels, test_labels),
+                np.concatenate(train_input_flat, test_input_flat)]
+
+
+class COIL20Dataset(object):
+    '''
+    Class for reading and preparing the COIL20Dataset
+    '''
+
+    def __init__(self):
+        self.cluster_count = 20
+
+    def loadDataset(self):
+        train_x = np.load('coil/coil_X.npy').astype(np.float32) / 256.0
+        train_y = np.load('coil/coil_y.npy')
+        train_x_flat = np.reshape(train_x, (-1, 128 * 128))
+        return [train_x, train_y, train_x_flat]
+
+
 def rescaleReshapeAndSaveImage(image_sample, out_filename):
-    
+    '''
+    For saving the reconstructed output as an image
+    :param image_sample: output of the autoencoder
+    :param out_filename: filename for the saved image
+    :return: None (side effect) Image saved
+    '''
     image_sample = ((image_sample - np.amin(image_sample)) / (np.amax(image_sample) - np.amin(image_sample))) * 255;
     image_sample = np.rint(image_sample).astype(int)
     image_sample = np.clip(image_sample, a_min=0, a_max=255).astype('uint8')
     img = Image.fromarray(image_sample, 'L')
     img.save(out_filename)
 
-def getClusterMetricString(method_name, labels_true, labels_pred):
-    
-    return '%-30s     %8.3f     %8.3f' % (method_name, metrics.adjusted_rand_score(labels_true, labels_pred), metrics.adjusted_mutual_info_score(labels_true, labels_pred))
 
-def evaluateKMeans(data, labels, method_name):
-    
-    kmeans = KMeans(n_clusters=10, n_init=20)
+def cluster_acc(y_true, y_pred):
+    '''
+    Uses the hungarian algorithm to find the best permutation mapping and then calculates the accuracy wrt
+    Implementation inpired from https://github.com/piiswrong/dec, since scikit does not implement this metric
+    this mapping and true labels
+    :param y_true: True cluster labels
+    :param y_pred: Predicted cluster labels
+    :return: accuracy score for the clustering
+    '''
+    D = int(max(y_pred.max(), y_true.max()) + 1)
+    w = np.zeros((D, D), dtype=np.int32)
+    for i in range(y_pred.size):
+        idx1 = int(y_pred[i])
+        idx2 = int(y_true[i])
+        w[idx1, idx2] += 1
+    ind = linear_assignment(w.max() - w)
+    return sum([w[i, j] for i, j in ind]) * 1.0 / y_pred.size
+
+
+def getClusterMetricString(method_name, labels_true, labels_pred):
+    '''
+    Creates a formatted string containing the method name and acc, nmi metrics - can be used for printing
+    :param method_name: Name of the clustering method (just for printing)
+    :param labels_true: True label for each sample
+    :param labels_pred: Predicted label for each sample
+    :return: Formatted string containing metrics and method name
+    '''
+    acc = cluster_acc(labels_true, labels_pred)
+    nmi = metrics.normalized_mutual_info_score(labels_true, labels_pred)
+    return '%-50s     %8.3f     %8.3f' % (method_name, acc, nmi)
+
+
+def evaluateKMeans(data, labels, nclusters, method_name):
+    '''
+    Clusters data with kmeans algorithm and then returns the string containing method name and metrics, and also the evaluated cluster centers
+    :param data: Points that need to be clustered as a numpy array
+    :param labels: True labels for the given points
+    :param nclusters: Total number of clusters
+    :param method_name: Name of the method from which the clustering space originates (only used for printing)
+    :return: Formatted string containing metrics and method name, cluster centers
+    '''
+    kmeans = KMeans(n_clusters=nclusters, n_init=20)
     kmeans.fit(data)
     return getClusterMetricString(method_name, labels, kmeans.labels_), kmeans.cluster_centers_
 
 
-def visualizeData(data,clust_assig=None, cluster_nrs=-1):
-
-    # convert image data to float64 matrix. float64 is need for bh_sne
-    data = np.asarray(data).astype('float64')
-    data = data.reshape((data.shape[0], -1))
-
-    # get vizualization data and split to x and y
-    vis_data = bh_sne(data)
-    vis_x = vis_data[:, 0]
-    vis_y = vis_data[:, 1]
-
-
-    # show data
-    if(clust_assig is not None): # if predicted assignements exist then color code can be used to show it
-        plt.scatter(vis_x, vis_y,s=2, c=clust_assig, cmap=plt.cm.get_cmap("jet", cluster_nrs))
-        plt.colorbar(ticks=range(cluster_nrs))
-        plt.clim(-0.5, 9.5)
-    else:
-        plt.plot(vis_x,vis_y)
-        
-    plt.show()
+def visualizeData(Z, labels, num_clusters, title):
+    '''
+    TSNE visualization of the points in latent space Z
+    :param Z: Numpy array containing points in latent space in which clustering was performed
+    :param labels: True labels - used for coloring points
+    :param num_clusters: Total number of clusters
+    :param title: filename where the plot should be saved
+    :return: None - (side effect) saves clustering visualization plot in specified location
+    '''
+    labels = labels.astype(int)
+    tsne = manifold.TSNE(n_components=2, init='pca', random_state=0)
+    Z_tsne = tsne.fit_transform(Z)
+    fig = plt.figure()
+    plt.scatter(Z_tsne[:, 0], Z_tsne[:, 1], s=2, c=labels, cmap=plt.cm.get_cmap("jet", num_clusters))
+    plt.colorbar(ticks=range(num_clusters))
+    fig.savefig(title, dpi=fig.dpi)
