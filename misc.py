@@ -1,6 +1,5 @@
 '''
 Created on Jul 11, 2017
-@author: yawarnihal, eliealjalbout
 '''
 
 import cPickle

@@ -1,6 +1,5 @@
 '''
 Created on Jul 9, 2017
-@author: yawarnihal, eliealjalbout
 '''
 import numpy
 import json

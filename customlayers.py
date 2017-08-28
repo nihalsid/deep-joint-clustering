@@ -1,6 +1,5 @@
 '''
 Created on Jul 25, 2017
-@author: eliealjalbout, yawarnihal
 '''
 
 from lasagne import layers

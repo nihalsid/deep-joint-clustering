@@ -1,6 +1,5 @@
 '''
 Created on Jul 11, 2017
-@author: yawarnihal, eliealjalbout
 '''
 
 from datetime import datetime
@@ -310,6 +309,7 @@ class NetworkBuilder(object):
         # Populate the missing values in the dictionary with defaults, also add the missing decoder part
         # of the autoencoder which is missing in the dictionary
         self.network_description = self.populateMissingDescriptions(network_description)
+        print(self.network_description['layers'])
         # Create theano variables for input and output - would be of different types for simple and convolutional autoencoders
         if self.network_description['network_type'] == 'CAE':
             self.t_input = T.tensor4('input_var')
