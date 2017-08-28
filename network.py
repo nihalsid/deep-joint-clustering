@@ -9,6 +9,7 @@ from lasagne import layers
 import lasagne
 from lasagne.layers.helper import get_all_layers
 import theano
+import signal
 
 from customlayers import ClusteringLayer, Unpool2DLayer, getSoftAssignments
 from misc import evaluateKMeans, visualizeData, rescaleReshapeAndSaveImage
@@ -37,8 +38,11 @@ rootLogger.addHandler(consoleHandler)
 class DCJC(object):
     # Main class holding autoencoder network and training functions
     def __init__(self, network_description):
+
+        signal.signal(signal.SIGINT, self.signal_handler)
         self.name = network_description['name']
         netbuilder = NetworkBuilder(network_description)
+        self.shouldStopNow  = False
         # Get the lasagne network using the network builder class that creates autoencoder with the specified architecture
         self.network = netbuilder.buildNetwork()
         self.encode_layer, self.encode_size = netbuilder.getEncodeLayerAndSize()
@@ -70,6 +74,14 @@ class DCJC(object):
         loss = lasagne.objectives.squared_error(prediction_expression, t_target)
         loss = loss.mean()
         return loss
+
+    def signal_handler(self,signal, frame):
+
+        command = raw_input('\nWhat is your command?')
+        if str(command).lower()=="stop":
+            self.shouldStopNow  = True
+        else:
+            exec(command)
 
     def pretrainWithData(self, dataset, epochs, continue_training=False):
         '''
@@ -309,7 +321,6 @@ class NetworkBuilder(object):
         # Populate the missing values in the dictionary with defaults, also add the missing decoder part
         # of the autoencoder which is missing in the dictionary
         self.network_description = self.populateMissingDescriptions(network_description)
-        print(self.network_description['layers'])
         # Create theano variables for input and output - would be of different types for simple and convolutional autoencoders
         if self.network_description['network_type'] == 'CAE':
             self.t_input = T.tensor4('input_var')
