@@ -429,7 +429,7 @@
     },
     {
     "name": "c-9-20_p_c-5-20_p_c-5-20_p_c-5-320_p_fc-20",
-    "use_batch_norm":0,
+    "use_batch_norm":1,
     "batch_size": 10,
     "layers": [
         {
