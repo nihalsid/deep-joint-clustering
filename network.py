@@ -110,16 +110,19 @@ class DCJC(object):
             self.learning_rate.set_value(self.learning_rate.get_value() * lasagne.utils.floatX(0.9999))
             # For every 20th iteration, print the clustering accuracy and nmi - for checking if the network
             # is actually doing something meaningful - the labels are never used for training
-            if (epoch + 1) % 20 == 0:
+            if (epoch + 1) % 2 == 0:
                 for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
                     Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
                     # Uncomment the next two lines to create reconstruction outputs in folder dumps/ (may need to be created)
-                    # for i, x in enumerate(self.predictReconstruction(batch[0])):
-                    #    rescaleReshapeAndSaveImage(x[0], "dumps/%02d%03d.jpg"%(epoch,i));
+                    #for i, x in enumerate(self.predictReconstruction(batch[0])):
+                    #	print('dump')
+                    #	rescaleReshapeAndSaveImage(x[0], "dumps/%02d%03d.jpg"%(epoch,i));
                 rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), "%d/%d [%.4f]" % (epoch + 1, epochs, error / total_batches))[0])
             else:
                 # Just report the training loss
                 rootLogger.info("%-30s     %8s     %8s" % ("%d/%d [%.4f]" % (epoch + 1, epochs, error / total_batches), "", ""))
+            if self.shouldStopNow:
+            	break
         # The inputs in latent space after pretraining
         for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
             Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
@@ -200,7 +203,8 @@ class DCJC(object):
             if (epoch + 1) % 10 == 0:
                 rootLogger.info(evaluateKMeans(Z, dataset.labels, dataset.getClusterCount(), "%d [%.4f]" % (
                     epoch, error / total_batches))[0])
-
+            if self.shouldStopNow:
+           	   break
         # Save the inputs in latent space and the network parameters
         for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
             Z[i * batch_size:(i + 1) * batch_size] = self.predictEncoding(batch[0])
@@ -273,6 +277,8 @@ class DCJC(object):
             else:
                 # Just print the training loss
                 rootLogger.info("%-30s     %8s     %8s" % ("%d/%d [%.4f]" % (epoch + 1, epochs, error / total_batches), "", ""))
+            if self.shouldStopNow:
+            	break
 
         # Save the inputs in latent space and the network parameters
         for i, batch in enumerate(dataset.iterate_minibatches(self.input_type, batch_size, shuffle=False)):
@@ -445,6 +451,10 @@ class NetworkBuilder(object):
         network_description['layers'][-1]['is_output'] = True
         network_description['layers'][-1]['non_linearity'] = network_description['output_non_linearity']
         return network_description
+        
+    def getInitializationFct(self):
+		
+		return lasagne.init.GlorotUniform()
 
     def processLayer(self, network, layer_definition):
         '''
@@ -456,9 +466,9 @@ class NetworkBuilder(object):
             elif self.network_type == 'AE':
                 network = lasagne.layers.InputLayer(shape=(None, layer_definition['output_shape'][2]), input_var=self.t_input)
         elif (layer_definition['type'] == 'Dense'):
-            network = lasagne.layers.DenseLayer(network, num_units=layer_definition['num_units'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), name=self.getLayerName(layer_definition))
+            network = lasagne.layers.DenseLayer(network, num_units=layer_definition['num_units'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), name=self.getLayerName(layer_definition),W=self.getInitializationFct())
         elif (layer_definition['type'] == 'Conv2D'):
-            network = lasagne.layers.Conv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=tuple(layer_definition["filter_size"]), pad=layer_definition['conv_mode'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), name=self.getLayerName(layer_definition))
+            network = lasagne.layers.Conv2DLayer(network, num_filters=layer_definition['num_filters'], filter_size=tuple(layer_definition["filter_size"]), pad=layer_definition['conv_mode'], nonlinearity=self.getNonLinearity(layer_definition['non_linearity']), name=self.getLayerName(layer_definition),W=self.getInitializationFct())
         elif (layer_definition['type'] == 'MaxPool2D' or layer_definition['type'] == 'MaxPool2D*'):
             network = lasagne.layers.MaxPool2DLayer(network, pool_size=tuple(layer_definition["filter_size"]), name=self.getLayerName(layer_definition))
         elif (layer_definition['type'] == 'InverseMaxPool2D'):
@@ -478,7 +488,7 @@ class NetworkBuilder(object):
             self.encode_layer = lasagne.layers.flatten(network, name='fl')
             self.encode_size = layer_definition['output_shape'][0] * layer_definition['output_shape'][1] * layer_definition['output_shape'][2]
         return network
-
+	
     def getLayerName(self, layer_definition):
         '''
         Utility method to name layers
