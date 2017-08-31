@@ -1,11 +1,15 @@
 Deep Learning for Clustering
 =======================
-Code for project "Deep Learning for Clustering" under lab course  "Deep Learning for Computer Vision and Biomedicine". Depends on **numpy**, **theano**, **lasagne**, **scikit-learn**, **matplotlib**.
+Code for project "Deep Learning for Clustering" under lab course  "Deep Learning for Computer Vision and Biomedicine". Depends on **numpy**, **theano**, **lasagne**, **scikit-learn**, **matplotlib**. 
 
 #### Contributors
 - [Mohd Yawar Nihal Siddiqui](mailto:yawarnihal@gmail.com)
 - [Elie Aljalbout](mailto:elie.aljalbout@tum.de)
 - [Vladimir Golkov](mailto:vladimir.golkov@tum.de) (Supervisor)
+
+#### Research work evaluations
+
+Paper summaries for works we went through can be found on [trello board](https://trello.com/b/PAW9DGJK/clustering-tasks) in the papers read section 
 
 Usage
 --------
@@ -140,6 +144,8 @@ DCN|0.830|0.810
 CNN-RC| - |0.915
 CNN-FD|-|0.876
 DBC| 0.964|0.917
+
+> Note: The commit b34743114f68624b5371cd0d4c059b141422902f gives upto 0.96 accuracy and 0.92 NMI on the MNIST dataset. We will include it to the main branch once we can get better results with the COIL architecture 
 
 ##### **Latent space visualizations**
 
